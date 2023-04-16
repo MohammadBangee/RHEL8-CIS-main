@@ -1,0 +1,1118 @@
+---
+
+- name: "5.1.1 | PATCH | Ensure cron daemon is enabled"
+  service:
+      name: crond
+      enabled: true
+  when:
+      - rhel8cis_rule_5_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.1
+
+- name: "5.1.2 | PATCH | Ensure permissions on /etc/crontab are configured"
+  file:
+      path: /etc/crontab
+      owner: root
+      group: root
+      mode: 0600
+  when:
+      - rhel8cis_rule_5_1_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.2
+
+- name: "5.1.3 | PATCH | Ensure permissions on /etc/cron.hourly are configured"
+  file:
+      path: /etc/cron.hourly
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.3
+
+- name: "5.1.4 | PATCH | Ensure permissions on /etc/cron.daily are configured"
+  file:
+      path: /etc/cron.daily
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.4
+
+- name: "5.1.5 | PATCH | Ensure permissions on /etc/cron.weekly are configured"
+  file:
+      path: /etc/cron.weekly
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.1.5
+
+- name: "5.1.6 | PATCH | Ensure permissions on /etc/cron.monthly are configured"
+  file:
+      path: /etc/cron.monthly
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_5.1.6
+
+- name: "5.1.7 | PATCH | Ensure permissions on /etc/cron.d are configured"
+  file:
+      path: /etc/cron.d
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.7
+
+- name: "5.1.8 | PATCH | Ensure cron is restricted to authorized users"
+  block:
+      - name: "5.1.8 | PATCH | Ensure cron is restricted to authorized users | Remove cron.deny"
+        file:
+            path: /etc/cron.deny
+            state: absent
+
+      - name: "5.1.8 | PATCH | Ensure cron is restricted to authorized users | Check if cron.allow exists"
+        stat:
+            path: "/etc/cron.allow"
+        register: rhel8cis_5_1_8_cron_allow_state
+
+      - name: "5.1.8 | PATCH | Ensure cron is restricted to authorized users | Ensure cron.allow is restricted to authorized users"
+        file:
+            path: /etc/cron.allow
+            state: '{{ "file" if  rhel8cis_5_1_8_cron_allow_state.stat.exists else "touch" }}'
+            owner: root
+            group: root
+            mode: 0600
+  when:
+      - rhel8cis_rule_5_1_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.8
+
+- name: "5.1.9 | PATCH | Ensure at is restricted to authorized users"
+  block:
+      - name: "5.1.9 | PATCH | Ensure at is restricted to authorized users | Remove at.deny"
+        file:
+            path: /etc/at.deny
+            state: absent
+
+      - name: "5.1.9 | PATCH | Ensure at is restricted to authorized users  | Check if at.allow exists"
+        stat:
+            path: "/etc/at.allow"
+        register: rhel8cis_5_1_9_at_allow_state
+
+      - name: "5.1.9 | PATCH | Ensure at is restricted to authorized users | Ensure at.allow is restricted to authorized users"
+        file:
+            path: /etc/at.allow
+            state: '{{ "file" if  rhel8cis_5_1_9_at_allow_state.stat.exists else "touch" }}'
+            owner: root
+            group: root
+            mode: 0600
+  when:
+      - rhel8cis_rule_5_1_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.9
+
+---
+
+- name: "5.2.1 | Ensure permissions on /etc/ssh/sshd_config are configured"
+  file:
+      path: /etc/ssh/sshd_config
+      owner: root
+      group: root
+      mode: 0600
+  when:
+      - rhel8cis_rule_5_2_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - permissions
+      - rule_5.2.1
+
+- name: "5.2.2 | PATCH | Ensure permissions on SSH private host key files are configured"
+  block:
+      - name: "5.2.2 | AUDIT | Ensure permissions on SSH private host key files are configured | Find the SSH private host keys"
+        find:
+            paths: /etc/ssh
+            patterns: 'ssh_host_*_key'
+            recurse: true
+            file_type: any
+        register: rhel8cis_5_2_2_ssh_private_host_key
+
+      - name: "5.2.2 | PATCH | Ensure permissions on SSH private host key files are configured | Set permissions on SSH private host keys"
+        file:
+            path: "{{ item.path }}"
+            owner: root
+            group: root
+            mode: 0600
+        with_items:
+            - "{{ rhel8cis_5_2_2_ssh_private_host_key.files }}"
+        loop_control:
+            label: "{{ item.path }}"
+  when:
+      - rhel8cis_rule_5_2_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - permissions
+      - rule_5.2.2
+
+- name: "5.2.3 | PATCH | Ensure permissions on SSH public host key files are configured"
+  block:
+      - name: "5.2.3 | AUDIT | Ensure permissions on SSH public host key files are configured | Find the SSH public host keys"
+        find:
+            paths: /etc/ssh
+            patterns: 'ssh_host_*_key.pub'
+            recurse: true
+            file_type: any
+        register: rhel8cis_5_2_3_ssh_public_host_key
+
+      - name: "5.2.3 | PATCH | Ensure permissions on SSH public host key files are configured | Set permissions on SSH public host keys"
+        file:
+            path: "{{ item.path }}"
+            owner: root
+            group: root
+            mode: 0644
+        with_items:
+            - "{{ rhel8cis_5_2_3_ssh_public_host_key.files }}"
+        loop_control:
+            label: "{{ item.path }}"
+  when:
+      - rhel8cis_rule_5_2_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.3
+
+- name: "5.2.4 | PATCH | Ensure SSH access is limited"
+  block:
+      - name: "5.2.4 | PATCH | Ensure SSH access is limited | Add line to sshd_config for allowusers"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: "^AllowUsers"
+            line: AllowUsers {{ rhel8cis_sshd['allowusers'] }}
+        notify: restart sshd
+        when: "rhel8cis_sshd['allowusers']|default('') | length > 0"
+
+      - name: "5.2.4 | PATCH | Ensure SSH access is limited | Add line to sshd_config for allowgroups"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: "^AllowGroups"
+            line: AllowGroups {{ rhel8cis_sshd['allowgroups'] }}
+        notify: restart sshd
+        when: "rhel8cis_sshd['allowgroups']|default('') | length > 0"
+
+      - name: "5.2.4 | PATCH | Ensure SSH access is limited | Add line to sshd_config for denyusers"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: "^DenyUsers"
+            line: DenyUsers {{ rhel8cis_sshd['denyusers'] }}
+        notify: restart sshd
+        when: "rhel8cis_sshd['denyusers']|default('') | length > 0"
+
+      - name: "5.2.4 | PATCH | Ensure SSH access is limited | Add line to sshd_config for denygroups"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: "^DenyGroups"
+            line: DenyGroups {{ rhel8cis_sshd['denygroups'] }}
+        notify: restart sshd
+        when: "rhel8cis_sshd['denygroups']|default('') | length > 0"
+  when:
+      - rhel8cis_rule_5_2_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.4
+
+- name: "5.2.5 | PATCH | Ensure SSH LogLevel is appropriate"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#LogLevel|^LogLevel"
+      line: 'LogLevel {{ rhel8cis_ssh_loglevel }}'
+  when:
+      - rhel8cis_rule_5_2_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sshs
+      - rule_5.2.5
+
+- name: "5.2.6 | PATCH | Ensure SSH PAM is enabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#UsePAM|^UsePAM"
+      line: 'UsePAM yes'
+  when:
+      - rhel8cis_rule_5_2_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.6
+
+- name: "5.2.7 | PATCH | Ensure SSH root login is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#PermitRootLogin|^PermitRootLogin"
+      line: 'PermitRootLogin no'
+  when:
+      - rhel8cis_rule_5_2_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.7
+
+- name: "5.2.8 | PATCH | Ensure SSH HostbasedAuthentication is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: ^#HostbasedAuthentication|^HostbasedAuthentication"
+      line: 'HostbasedAuthentication no'
+  when:
+      - rhel8cis_rule_5_2_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.8
+
+- name: "5.2.9 | PATCH | Ensure SSH PermitEmptyPasswords is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#PermitEmptyPasswords|^PermitEmptyPasswords"
+      line: 'PermitEmptyPasswords no'
+  when:
+      - rhel8cis_rule_5_2_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.9
+
+- name: "5.2.10 | PATCH | Ensure SSH PermitUserEnvironment is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#PermitUserEnvironment|^PermitUserEnvironment"
+      line: 'PermitUserEnvironment no'
+  when:
+      - rhel8cis_rule_5_2_10
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.10
+
+- name: "5.2.11 | PATCH | Ensure SSH IgnoreRhosts is enabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#IgnoreRhosts|^IgnoreRhosts"
+      line: 'IgnoreRhosts yes'
+  when:
+      - rhel8cis_rule_5_2_11
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.11
+
+- name: "5.2.12 | PATCH | Ensure SSH X11 forwarding is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#X11Forwarding|^X11Forwarding"
+      line: 'X11Forwarding no'
+  when:
+      - rhel8cis_rule_5_2_12
+  tags:
+      - level2-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.12
+
+- name: "5.2.13 | PATCH | Ensure SSH AllowTcpForwarding is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#AllowTcpForwarding|^AllowTcpForwarding"
+      line: 'AllowTcpForwarding no'
+  when:
+      - rhel8cis_rule_5_2_13
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.13
+
+- name: "5.2.14 | PATCH | Ensure system-wide crypto policy is not over-ridden"
+  block:
+      - name: "5.2.14 | AUDIT | Ensure system-wide crypto policy is not over-ridden"
+        shell: grep -i '^\s*CRYPTO_POLICY=' /etc/sysconfig/sshd
+        failed_when: ( crypto_policy_override.rc not in [ 0, 1 ] )
+        changed_when: false
+        register: crypto_policy_override
+
+      - name: "5.2.14 | PATCH | Ensure system-wide crypto policy is not over-ridden"
+        shell: sed -ri "s/^\s*(CRYPTO_POLICY\s*=.*)$/# \1/" /etc/sysconfig/sshd
+        notify: restart sshd
+        when:
+            - crypto_policy_override.stdout | length > 0
+  when:
+      - rhel8cis_rule_5_2_14
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.14
+
+- name: "5.2.15 | PATCH | Ensure SSH warning banner is configured"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: '^Banner'
+      line: 'Banner /etc/issue.net'
+  when:
+      - rhel8cis_rule_5_2_15
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.15
+
+- name: "5.2.16 | PATCH | Ensure SSH MaxAuthTries is set to 4 or less"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: '^(#)?MaxAuthTries \d'
+      line: 'MaxAuthTries 4'
+  when:
+      - rhel8cis_rule_5_2_16
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.16
+
+- name: "5.2.17 | PATCH | Ensure SSH MaxStartups is configured"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#MaxStartups|^MaxStartups"
+      line: 'MaxStartups 10:30:60'
+  when:
+      - rhel8cis_rule_5_2_17
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.17
+
+- name: "5.2.18 | PATCH | Ensure SSH MaxSessions is set to 10 or less"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#MaxSessions|^MaxSessions"
+      line: 'MaxSessions {{ rhel8cis_ssh_maxsessions }}'
+  when:
+      - rhel8cis_rule_5_2_18
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.18
+
+- name: "5.2.19 | PATCH | Ensure SSH LoginGraceTime is set to one minute or less"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#LoginGraceTime|^LoginGraceTime"
+      line: "LoginGraceTime {{ rhel8cis_sshd['logingracetime'] }}"
+  when:
+      - rhel8cis_rule_5_2_19
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.19
+
+- name: "5.2.20 | PATCH | Ensure SSH Idle Timeout Interval is configured"
+  block:
+      - name: "5.2.20 | PATCH | Ensure SSH Idle Timeout Interval is configured | Add line in sshd_config for ClientAliveInterval"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: '^ClientAliveInterval'
+            line: "ClientAliveInterval {{ rhel8cis_sshd['clientaliveinterval'] }}"
+
+      - name: "5.2.20 | PATCH | Ensure SSH Idle Timeout Interval is configured | Ensure SSH ClientAliveCountMax set to <= 3"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: '^ClientAliveCountMax'
+            line: "ClientAliveCountMax {{ rhel8cis_sshd['clientalivecountmax'] }}"
+  when:
+      - rhel8cis_rule_5_2_20
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.20
+
+---
+
+- name: "5.3.1 | PATCH | Ensure sudo is installed"
+  package:
+      name: sudo
+      state: present
+  when:
+      - rhel8cis_rule_5_3_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.1
+
+- name: "5.3.2 | PATCH | Ensure sudo commands use pty"
+  lineinfile:
+      path: /etc/sudoers
+      line: "Defaults    use_pty"
+  when:
+      - rhel8cis_rule_5_3_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.2
+
+- name: "5.3.3 | PATCH | Ensure sudo log file exists"
+  lineinfile:
+      path: /etc/sudoers
+      regexp: '^Defaults\s+logfile='
+      line: 'Defaults logfile={{ rhel8cis_sudolog_location }}'
+  when:
+      - rhel8cis_rule_5_3_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.3
+
+- name: "5.3.4 | PATCH | Ensure users must provide password for escalation"
+  replace:
+      path: "{{ item }}"
+      regexp: '^([^#|{% if system_is_ec2 %}ec2-user{% endif %}].*)NOPASSWD(.*)'
+      replace: '\1PASSWD\2'
+  with_items:
+      - "{{ rhel8cis_sudoers_files.stdout_lines }}"
+  when:
+      - rhel8cis_rule_5_3_4
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.4
+
+- name: "5.3.5 | PATCH | Ensure re-authentication for privilege escalation is not disabled globally"
+  replace:
+      path: "{{ item }}"
+      regexp: '^([^#].*)!authenticate(.*)'
+      replace: '\1authenticate\2'
+  with_items:
+      - "{{ rhel8cis_sudoers_files.stdout_lines }}"
+  when:
+      - rhel8cis_rule_5_3_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.5
+
+- name: "5.3.6 | PATCH | Ensure sudo authentication timeout is configured correctly"
+  block:
+      - name: "5.3.6 | AUDIT | Ensure sudo authentication timeout is configured correctly | Get files with timeout set"
+        shell: grep -is 'timestamp_timeout' /etc/sudoers /etc/sudoers.d/* | cut -d":" -f1 | uniq | sort
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_5_3_6_timeout_files
+
+      - name: "5.3.6 | PATCH | Ensure sudo authentication timeout is configured correctly | Set value if no results"
+        lineinfile:
+            path: /etc/sudoers
+            regexp: 'Defaults timestamp_timeout='
+            line: "Defaults timestamp_timeout={{ rhel8cis_sudo_timestamp_timeout }}"
+            validate: '/usr/sbin/visudo -cf %s'
+        when: rhel8cis_5_3_6_timeout_files.stdout | length == 0
+
+      - name: "5.3.6 | PATCH | Ensure sudo authentication timeout is configured correctly | Set value if has results"
+        replace:
+            path: "{{ item }}"
+            regexp: 'timestamp_timeout=(\d+)'
+            replace: "timestamp_timeout={{ rhel8cis_sudo_timestamp_timeout }}"
+            validate: '/usr/sbin/visudo -cf %s'
+        with_items:
+            - "{{ rhel8cis_5_3_6_timeout_files.stdout_lines }}"
+        when: rhel8cis_5_3_6_timeout_files.stdout | length > 0
+  when:
+      - rhel8cis_rule_5_3_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.6
+
+- name: "5.3.7 | PATCH | Ensure access to the su command is restricted"
+  block:
+      - name: "5.3.7 | PATCH | Ensure access to the su command is restricted | Setting pam_wheel to use_uid"
+        lineinfile:
+            path: /etc/pam.d/su
+            regexp: '^(#)?auth\s+required\s+pam_wheel\.so'
+            line: 'auth            required        pam_wheel.so use_uid {% if rhel8cis_sugroup is defined %}group={{ rhel8cis_sugroup }}{% endif %}'
+
+      - name: "5.3.7 | PATCH | Ensure access to the su command is restricted | wheel group contains root"
+        user:
+            name: "{{ rhel8cis_sugroup_users }}"
+            groups: "{{ rhel8cis_sugroup | default('wheel') }}"
+  when:
+      - rhel8cis_rule_5_3_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.7
+
+---
+
+- name: "5.4.1 | PATCH | Ensure custom authselect profile is used"
+  block:
+      - name: "5.4.1 | AUDIT | Ensure custom authselect profile is used | Gather profiles"
+        shell: 'authselect current | grep "Profile ID: custom/"'
+        failed_when: false
+        changed_when: false
+        check_mode: false
+        register: rhel8cis_5_4_1_profiles
+
+      - name: "5.4.1 | AUDIT | Ensure custom authselect profile is used | Show profiles"
+        debug:
+            msg:
+                - "Below are the current custom profiles"
+                - "{{ rhel8cis_5_4_1_profiles.stdout_lines }}"
+
+      - name: "5.4.1 | PATCH | Ensure custom authselect profile is used | Create custom profiles"
+        shell: authselect create-profile {{ rhel8cis_authselect['custom_profile_name'] }} -b {{ rhel8cis_authselect['default_file_to_copy'] }}
+        when: rhel8cis_authselect_custom_profile_create
+  when:
+      - rhel8cis_rule_5_4_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - authselect
+      - rule_5.4.1
+
+- name: "5.4.2 | PATCH | Ensure authselect includes with-faillock"
+  block:
+      - name: "5.4.2 | AUDIT | Ensure authselect includes with-faillock | Gather profiles and enabled features"
+        shell: "authselect current | grep with-faillock"
+        failed_when: false
+        changed_when: false
+        check_mode: false
+        register: rhel8cis_5_4_2_profiles_faillock
+
+      - name: "5.4.2 | AUDIT | Ensure authselect includes with-faillock| Show profiles"
+        debug:
+            msg:
+                - "Below are the current custom profiles"
+                - "{{ rhel8cis_5_4_2_profiles_faillock.stdout_lines }}"
+
+      - name: "5.4.2 | PATCH | Ensure authselect includes with-faillock | Create custom profiles"
+        shell: "authselect select custom/{{ rhel8cis_authselect['custom_profile_name'] }} with-faillock"
+        when: rhel8cis_authselect_custom_profile_select
+  when:
+      - rhel8cis_rule_5_4_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - authselect
+      - rule_5.4.2
+
+---
+
+- name: "5.5.1 | PATCH | Ensure password creation requirements are configured"
+  block:
+      - name: "5.5.1 | PATCH | Ensure password creation requirements are configured | Set pwquality config settings"
+        lineinfile:
+            path: /etc/security/pwquality.conf
+            regexp: "{{ item.regexp }}"
+            line: "{{ item.line }}"
+        with_items:
+            - { regexp: '^minlen', line: 'minlen = {{ rhel8cis_pam_password.minlen }}' }
+            - { regexp: '^minclass', line: 'minclass = {{ rhel8cis_pam_password.minclass }}' }
+
+      - name: "5.5.1 | PATCH | Ensure password creation requirements are configured | Set system-auth and password-auth retry settings"
+        lineinfile:
+            path: "{{ item }}"
+            state: present
+            regexp: '^password\s*requisite\s*pam_pwquality.so'
+            line: "password    requisite                                    pam_pwquality.so try_first_pass local_users_only enforce_for_root retry=3"
+            insertbefore: '^#?password ?'
+        with_items:
+            - /etc/pam.d/system-auth
+            - /etc/pam.d/password-auth
+  when:
+      - rhel8cis_rule_5_5_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.5.1
+
+- name: "5.5.2 | PATCH | Ensure system accounts are secured | pre RHEL8.2"
+  block:
+      - name: "5.5.2 | PATCH | Ensure lockout for failed password attempts is configured | pre RHEL8.2 | Add deny count and unlock time for preauth"
+        lineinfile:
+            path: /etc/pam.d/{{ item }}
+            state: present
+            regexp: '^auth\s*required\s*pam_faillock.so preauth'
+            line: "auth        required                                     pam_faillock.so preauth silent deny={{ rhel8cis_pam_faillock.attempts }}{{ (rhel8cis_pam_faillock.fail_for_root) | ternary(' even_deny_root ',' ') }}unlock_time={{ rhel8cis_pam_faillock.unlock_time }}"
+            insertafter: '^#?auth ?'
+        with_items:
+            - "system-auth"
+            - "password-auth"
+        when: ansible_distribution_version <= "8.1"
+
+      - name: "5.5.2 | PATCH | Ensure lockout for failed password attempts is configured | pre RHEL8.2 | Add deny count and unlock times for authfail"
+        lineinfile:
+            dest: /etc/pam.d/{{ item }}
+            state: present
+            regexp: '^auth\s*required\s*pam_faillock.so authfail'
+            line: "auth        required                                     pam_faillock.so authfail deny={{ rhel8cis_pam_faillock.attempts }}{{ (rhel8cis_pam_faillock.fail_for_root) | ternary(' even_deny_root ',' ') }}unlock_time={{ rhel8cis_pam_faillock.unlock_time }}"
+            insertafter: '^#?auth ?'
+        with_items:
+            - "system-auth"
+            - "password-auth"
+        when: ansible_distribution_version <= "8.1"
+
+      - name: "5.5.2 | PATCH | Ensure system accounts are secured | RHEL8.2+ "
+        lineinfile:
+            path: /etc/security/faillock.conf
+            state: present
+            regexp: "{{ item.regexp }}"
+            line: "{{ item.line }}"
+        with_items:
+            - { regexp: '^\s*deny\s*=\s*[1-5]\b', line: 'deny = 5' }
+            - { regexp: '^\s*unlock_time\s*=\s*(0|9[0-9][0-9]|[1-9][0-9][0-9][0-9]+)\b', line: 'unlock_time = 900' }
+        when: ansible_distribution_version >= "8.2"
+  when:
+      - rhel8cis_rule_5_5_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.5.2
+
+# This is only setting the pam_pwhistory remember due to the man page for pam_unix.so saying you should not use the remember feature
+# Man page entry below
+# remember=n
+# The last n passwords for each user are saved in /etc/security/opasswd in order to force password
+# change history and keep the user from alternating between the same password too frequently. The MD5
+# password hash algorithm is used for storing the old passwords. Instead of this option the
+# pam_pwhistory module should be used.
+- name: "5.5.3 | PATCH | Ensure password reuse is limited"
+  lineinfile:
+      path: /etc/pam.d/system-auth
+      state: present
+      line: "password    requisite                                    pam_pwhistory.so try_first_pass local_users_only enforce_for_root retry=3 remember={{ rhel8cis_pam_faillock.remember }}"
+      insertafter: '^password\s*requisite\s*pam_pwquality.so'
+  when:
+      - rhel8cis_rule_5_5_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.5.3
+
+- name: "5.5.4 | PATCH | Ensure password hashing algorithm is SHA-512"
+  block:
+      - name: "5.5.4 | PATCH | Ensure password hashing algorithm is SHA-512 | libuser.conf"
+        replace:
+            path: "{{ item.path }}"
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+        with_items:
+            - { path: /etc/libuser.conf, regexp: '^crypt_style\s*=\s*.*$', replace: 'crypt_style = sha512' }
+            - { path: /etc/login.defs, regexp: '^ENCRYPT_METHOD.*', replace: 'ENCRYPT_METHOD SHA512' }
+
+      - name: "5.5.4 | PATCH | Ensure password reuse is limited | pwhistory"
+        replace:
+            path: "{{ item }}"
+            regexp: '^password\s*sufficient\s*pam_unix.so.*$'
+            replace: 'password    sufficient                                   pam_unix.so sha512 shadow try_first_pass use_authtok remember={{ rhel8cis_pam_faillock.remember }}'
+        with_items:
+            - /etc/pam.d/password-auth
+            - /etc/pam.d/system-auth
+  when:
+      - rhel8cis_rule_5_5_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.5.4
+
+---
+
+- name: "5.6.1.1 | PATCH | Ensure password expiration is 365 days or less"
+  lineinfile:
+      path: /etc/login.defs
+      regexp: '^PASS_MAX_DAYS'
+      line: "PASS_MAX_DAYS {{ rhel8cis_pass['max_days'] }}"
+  when:
+      - rhel8cis_rule_5_6_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - password
+      - rule_5.6.1.1
+
+- name: "5.6.1.2 | PATCH | Ensure minimum days between password changes is 7 or more"
+  lineinfile:
+      path: /etc/login.defs
+      regexp: '^PASS_MIN_DAYS'
+      line: "PASS_MIN_DAYS {{ rhel8cis_pass['min_days'] }}"
+  when:
+      - rhel8cis_rule_5_6_1_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - password
+      - rule_5.6.1.2
+
+- name: "5.6.1.3 | PATCH | Ensure password expiration warning days is 7 or more"
+  lineinfile:
+      path: /etc/login.defs
+      regexp: '^PASS_WARN_AGE'
+      line: "PASS_WARN_AGE {{ rhel8cis_pass['warn_age'] }}"
+  when:
+      - rhel8cis_rule_5_6_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - password
+      - rule_5.6.1.3
+
+- name: "5.6.1.4 | PATCH | Ensure inactive password lock is 30 days or less"
+  block:
+      - name: "5.6.1.4 | AUDIT | Ensure inactive password lock is 30 days or less | Check current settings"
+        shell: useradd -D | grep INACTIVE={{ rhel8cis_inactivelock.lock_days }} | cut -f2 -d=
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_5_6_1_4_inactive_settings
+
+      - name: "5.6.1.4 | PATCH | Ensure inactive password lock is 30 days or less | Set default inactive setting"
+        command: useradd -D -f {{ rhel8cis_inactivelock.lock_days }}
+        when: rhel8cis_5_6_1_4_inactive_settings.stdout | length == 0
+
+      - name: "5.6.1.4 | AUDIT | Ensure inactive password lock is 30 days or less | Getting user list"
+        shell: "awk -F: '/^[^#:]+:[^\\!\\*:]*:[^:]*:[^:]*:[^:]*:[^:]*:(\\s*|-1|3[1-9]|[4-9][0-9]|[1-9][0-9][0-9]+):[^:]*:[^:]*\\s*$/ {print $1}' /etc/shadow"
+        changed_when: false
+        check_mode: false
+        register: rhel_8_5_6_1_4_user_list
+
+      - name: "5.6.1.4 | PATCH | Ensure inactive password lock is 30 days or less | Apply Inactive setting to existing accounts"
+        command: "chage --inactive {{ rhel8cis_inactivelock.lock_days }} {{ item }}"
+        with_items:
+            - "{{ rhel_8_5_6_1_4_user_list.stdout_lines }}"
+  when:
+      - rhel8cis_rule_5_6_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - password
+      - rule_5.6.1.4
+
+- name: "5.6.1.5 |  PATCH | Ensure all users last password change date is in the past"
+  block:
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past | Get current date in Unix Time"
+        shell: echo $(($(date --utc --date "$1" +%s)/86400))
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_5_6_1_5_currentut
+
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past | Get list of users with last changed pw date in the future"
+        shell: "cat /etc/shadow | awk -F: '{if($3>{{ rhel8cis_5_6_1_5_currentut.stdout }})print$1}'"
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_5_6_1_5_user_list
+
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past | Alert no pw change in the future exist"
+        debug:
+            msg: "Good News! All accounts have PW change dates that are in the past"
+        when: rhel8cis_5_6_1_5_user_list.stdout | length == 0
+
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past | Alert on accounts with pw change in the future"
+        debug:
+            msg: "Warning!! The following accounts have the last PW change date in the future: {{ rhel8cis_5_6_1_5_user_list.stdout_lines }}"
+        when:
+            - rhel8cis_5_6_1_5_user_list.stdout | length > 0
+            - not rhel8cis_futurepwchgdate_autofix
+
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past| Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '5.6.1.5'
+        when:
+            - rhel8cis_5_6_1_5_user_list.stdout | length > 0
+            - not rhel8cis_futurepwchgdate_autofix
+
+      - name: "5.6.1.5 | PATCH | Ensure all users last password change date is in the past | Fix accounts with pw change in the future"
+        command: passwd --expire {{ item }}
+        when:
+            - rhel8cis_5_6_1_5_user_list | length > 0
+            - rhel8cis_futurepwchgdate_autofix
+        with_items:
+            - "{{ rhel8cis_5_6_1_5_user_list.stdout_lines }}"
+  when:
+      - rhel8cis_rule_5_6_1_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.6.1.5
+
+---
+
+- name: "5.6.2 | PATCH | Ensure system accounts are secured"
+  block:
+      - name: "5.6.2 | Ensure system accounts are secured | Set nologin"
+        user:
+            name: "{{ item.id }}"
+            shell: /usr/sbin/nologin
+        with_items:
+            - "{{ rhel8cis_passwd }}"
+        when:
+            - item.id != "root"
+            - item.id != "sync"
+            - item.id != "shutdown"
+            - item.id != "halt"
+            - item.uid < rhel8uid_interactive_uid_start | int
+            - item.shell != "/bin/false"
+            - item.shell != "/usr/sbin/nologin"
+        loop_control:
+            label: "{{ item.id }}"
+
+      - name: "5.6.2 | PATCH | Ensure system accounts are secured | Lock accounts"
+        user:
+            name: "{{ item.id }}"
+            password_lock: true
+        with_items:
+            - "{{ rhel8cis_passwd }}"
+        when:
+            - item.id != "halt"
+            - item.id != "shutdown"
+            - item.id != "sync"
+            - item.id != "root"
+            - item.id != "nfsnobody"
+            - item.uid < rhel8uid_interactive_uid_start | int
+            - item.shell != "/bin/false"
+            - item.shell != "/usr/sbin/nologin"
+        loop_control:
+            label: "{{ item.id }}"
+  when:
+      - rhel8cis_rule_5_6_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_5.6.2
+
+- name: "5.6.3 | PATCH | Ensure default user shell timeout is 900 seconds or less"
+  blockinfile:
+      path: "{{ item.path }}"
+      state: "{{ item.state }}"
+      create: true
+      mode: 0644
+      marker: "# {mark} ANSIBLE MANAGED"
+      block: |
+        # Set session timeout - CIS ID RHEL-08-5.6.3
+        TMOUT={{ rhel8cis_shell_session_timeout.timeout }}
+        export TMOUT
+        readonly TMOUT
+  with_items:
+      - { path: "{{ rhel8cis_shell_session_timeout.file }}", state: present }
+      - { path: /etc/profile, state: "{{ (rhel8cis_shell_session_timeout.file == '/etc/profile') | ternary('present', 'absent') }}" }
+  when:
+      - rhel8cis_rule_5_6_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_5.6.3
+
+- name: "5.6.4 | PATCH | Ensure default group for the root account is GID 0"
+  command: usermod -g 0 root
+  changed_when: false
+  failed_when: false
+  when:
+      - rhel8cis_rule_5_6_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_5.6.4
+
+- name: "5.6.5 | PATCH | Ensure default user umask is 027 or more restrictive"
+  block:
+      - name: "5.6.5 | PATCH | Ensure default user umask is 027 or more restrictive | Set umask for /etc/login.defs pam_umask settings"
+        replace:
+            path: /etc/login.defs
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+        loop:
+            - { regexp: '(UMASK\s+)0[012][0-6]', replace: '\1 027' }
+            - { regexp: '(USERGROUPS_ENAB\s+)yes', replace: '\1 no' }
+
+      - name: "5.6.5 | PATCH | Ensure default user umask is 027 or more restrictive | Set umask for /etc/bashrc"
+        replace:
+            path: /etc/bashrc
+            regexp: '(^\s+umask) 0[012][0-6]'
+            replace: '\1 027'
+
+      - name: "5.6.5 | PATCH | Ensure default user umask is 027 or more restrictive | Set umask for /etc/profile"
+        replace:
+            path: /etc/profile
+            regexp: '(^\s+umask) 0[012][0-6]'
+            replace: '\1 027'
+  when:
+      - rhel8cis_rule_5_6_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_5.6.5
+

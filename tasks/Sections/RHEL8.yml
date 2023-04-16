@@ -1,0 +1,6043 @@
+---
+
+- name: "1.1.1.1 | PATCH | Ensure mounting of cramfs filesystems is disabled"
+  block:
+      - name: "1.1.1.1 | PATCH | Ensure mounting of cramfs filesystems is disabled | Edit modprobe config"
+        lineinfile:
+            path: /etc/modprobe.d/CIS.conf
+            regexp: "^(#)?install cramfs(\\s|$)"
+            line: "install cramfs /bin/true"
+            create: true
+            mode: 0600
+
+      - name: "1.1.1.1 | PATCH | Ensure mounting of cramfs filesystems is disabled | blacklist"
+        lineinfile:
+            path: /etc/modprobe.d/blacklist.conf
+            regexp: "^(#)?blacklist cramfs(\\s|$)"
+            line: "blacklist cramfs"
+            create: true
+            mode: 0600
+
+      - name: "1.1.1.1 | PATCH | Ensure mounting of cramfs filesystems is disabled | Disable cramfs"
+        modprobe:
+            name: cramfs
+            state: absent
+        when:
+            - not system_is_container
+  when:
+      - rhel8cis_rule_1_1_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_1.1.1.1
+      - cramfs
+
+- name: "1.1.1.2 | PATCH | Ensure mounting of squashfs filesystems is disabled"
+  block:
+      - name: "1.1.1.2 | PATCH | Ensure mounting of squashfs filesystems is disabled | Edit modprobe config"
+        lineinfile:
+            path: /etc/modprobe.d/CIS.conf
+            regexp: "^(#)?install squashfs(\\s|$)"
+            line: "install squashfs /bin/true"
+            create: true
+            mode: 0600
+
+      - name: "1.1.1.2 | PATCH | Ensure mounting of squashfs filesystems is disabled | blacklist"
+        lineinfile:
+            path: /etc/modprobe.d/blacklist.conf
+            regexp: "^(#)?blacklist squashfs(\\s|$)"
+            line: "blacklist squashfs"
+            create: true
+            mode: 0600
+
+      - name: "1.1.1.2 | PATCH | Ensure mounting of squashfs filesystems is disabled | Disable squashfs"
+        modprobe:
+            name: squashfs
+            state: absent
+        when:
+            - not system_is_container
+  when:
+      - rhel8cis_rule_1_1_1_2
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - rule_1.1.1.2
+      - squashfs
+
+- name: "1.1.1.3 | PATCH | Ensure mounting of udf filesystems is disabled"
+  block:
+      - name: "1.1.1.3 | PATCH | Ensure mounting of udf filesystems is disable | Edit modprobe config"
+        lineinfile:
+            path: /etc/modprobe.d/CIS.conf
+            regexp: "^(#)?install udf(\\s|$)"
+            line: "install udf /bin/true"
+            create: true
+            mode: 0600
+
+      - name: "1.1.1.3 | PATCH | Ensure mounting of udf filesystems is disabled | blacklist"
+        lineinfile:
+            path: /etc/modprobe.d/blacklist.conf
+            regexp: "^(#)?blacklist udf(\\s|$)"
+            line: "blacklist udf"
+            create: true
+            mode: 0600
+
+      - name: "1.1.1.3 | PATCH | Ensure mounting of udf filesystems is disable | Disable udf"
+        modprobe:
+            name: udf
+            state: absent
+        when:
+            - not system_is_container
+  when:
+      - rhel8cis_rule_1_1_1_3
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - rule_1.1.1.3
+      - udf
+
+---
+
+- name: "1.1.2.1 | PATCH | Ensure /tmp is a separate partition"
+  block:
+      - name: "1.1.2.1 | PATCH | Ensure /tmp is a separate partition | Absent"
+        debug:
+            msg: "Warning!! {{ required_mount }} is not mounted on a separate partition"
+
+      - name: "1.1.2.1 | PATCH | Ensure /tmp is a separate partition | Present"
+        ansible.builtin.import_tasks: warning_facts.yml
+  vars:
+      warn_control_id: '1.1.2.1'
+      required_mount: '/tmp'
+  when:
+      - rhel8cis_rule_1_1_2_1
+      - "'/tmp' not in mount_names"
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - mounts
+      - rule_1.1.2.1
+
+# via fstab
+- name: |
+        "1.1.2.2 | PATCH | Ensure nodev option set on /tmp partition"
+        "1.1.2.3 | PATCH | Ensure noexec option set on /tmp partition"
+        "1.1.2.4 | PATCH | Ensure nosuid option set on /tmp partition"
+  mount:
+      name: /tmp
+      src: "{{ item.device }}"
+      fstype: "{{ item.fstype }}"
+      state: present
+      opts: defaults,{% if rhel8cis_rule_1_1_2_2 %}nodev,{% endif %}{% if rhel8cis_rule_1_1_2_3 %}noexec,{% endif %}{% if rhel8cis_rule_1_1_2_4 %}nosuid{% endif %}
+  notify: remount tmp
+  with_items:
+      - "{{ ansible_mounts }}"
+  loop_control:
+      label: "{{ item.device }}"
+  when:
+      - item.mount == "/tmp"
+      - not rhel8cis_tmp_svc
+      - rhel8cis_rule_1_1_2_2 or
+        rhel8cis_rule_1_1_2_3 or
+        rhel8cis_rule_1_1_2_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - mounts
+      - rule_1.1.2.2
+      - rule_1.1.2.3
+      - rule_1.1.2.4
+
+# via systemd
+- name: |
+        "1.1.2.1 | PATCH | Ensure /tmp is configured"
+        "1.1.2.2 | PATCH | Ensure nodev option set on /tmp partition"
+        "1.1.2.3 | PATCH | Ensure noexec option set on /tmp partition"
+        "1.1.2.4 | PATCH | Ensure nosuid option set on /tmp partition"
+  template:
+      src: etc/systemd/system/tmp.mount.j2
+      dest: /etc/systemd/system/tmp.mount
+      owner: root
+      group: root
+      mode: 0644
+  notify: systemd restart tmp.mount
+  when:
+      - rhel8cis_tmp_svc
+      - rhel8cis_rule_1_1_2_1 or
+        rhel8cis_rule_1_1_2_2 or
+        rhel8cis_rule_1_1_2_3 or
+        rhel8cis_rule_1_1_2_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - mounts
+      - rule_1.1.2.1
+      - rule_1.1.2.2
+      - rule_1.1.2.3
+      - rule_1.1.2.4
+
+---
+
+- name: "1.1.3.1 | AUDIT | Ensure separate partition exists for /var"
+  block:
+      - name: "1.1.3.1 | AUDIT | Ensure separate partition exists for /var | Warn if partition is absent"
+        debug:
+            msg: "Warning!! {{ required_mount }} doesn't exist. This is a manual task"
+        register: var_mount_absent
+        changed_when: var_mount_absent.skipped is undefined
+
+      - name: "1.1.3.1 | AUDIT | Ensure separate partition exists for /var | Present"
+        ansible.builtin.import_tasks: warning_facts.yml
+  vars:
+      warn_control_id: '1.1.3.1'
+      required_mount: '/var'
+  when:
+      - "'/var' not in mount_names"
+      - rhel8cis_rule_1_1_3_1
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - mounts
+      - rule_1.1.3.1
+
+# skips if mount is absent
+- name: |
+          "1.1.3.2 | PATCH | Ensure nodev option set on /var partition"
+          "1.1.3.3 | PATCH | Ensure noexec option set on /var partition"
+          "1.1.3.4 | PATCH | Ensure nosuid option set on /var partition"
+  mount:
+      name: /var
+      src: "{{ item.device }}"
+      fstype: "{{ item.fstype }}"
+      state: present
+      opts: defaults,{% if rhel8cis_rule_1_1_3_3 %}noexec,{% endif %}{% if rhel8cis_rule_1_1_3_2 %}nodev,{% endif %}{% if rhel8cis_rule_1_1_3_4 %}nosuid{% endif %}
+  notify: change_requires_reboot
+  with_items:
+      - "{{ ansible_mounts }}"
+  loop_control:
+      label: "{{ item.device }}"
+  when:
+      - "'/var' in mount_names"
+      - item.mount == "/var"
+      - rhel8cis_rule_1_1_3_1  # This is required so the check takes place
+      - rhel8cis_rule_1_1_3_2 or
+        rhel8cis_rule_1_1_3_3 or
+        rhel8cis_rule_1_1_3_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - mounts
+      - skip_ansible_lint
+      - rule_1.1.3.2
+      - rule_1.1.3.3
+      - rule_1.1.3.4
+
+---
+
+# Skips if mount is absent
+- name: "1.1.4.1 | AUDIT | Ensure separate partition exists for /var/tmp"
+  block:
+      - name: "1.1.4.1 | AUDIT | Ensure separate partition exists for /var/tmp | Warn if partition is absent"
+        debug:
+            msg: "Warning!! {{ required_mount }} doesn't exist. This is a manual task"
+        register: var_tmp_mount_absent
+        changed_when: var_tmp_mount_absent.skipped is undefined
+
+      - name: "1.1.4.1 | AUDIT | Ensure separate partition exists for /var/tmp | Present"
+        ansible.builtin.import_tasks: warning_facts.yml
+  vars:
+      warn_control_id: '1.1.4.1'
+      required_mount: '/var/tmp'
+  when:
+      - rhel8cis_rule_1_1_4_1
+      - "'/var/tmp' not in mount_names"
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - audit
+      - mounts
+      - rule_1.1.4.1
+
+# skips if mount is absent
+- name: |
+          "1.1.4.2 | PATCH | Ensure noexec option set on /var/tmp partition"
+          "1.1.4.3 | PATCH | Ensure nosuid option set on /var/tmp partition"
+          "1.1.4.4 | PATCH | Ensure nodev option set on /var/tmp partition"
+  mount:
+      name: /var/tmp
+      src: "{{ item.device }}"
+      fstype: "{{ item.fstype }}"
+      state: present
+      opts: defaults,{% if rhel8cis_rule_1_1_4_2 %}noexec,{% endif %}{% if rhel8cis_rule_1_1_4_4 %}nodev,{% endif %}{% if rhel8cis_rule_1_1_4_3 %}nosuid{% endif %}
+  notify: change_requires_reboot
+  with_items:
+      - "{{ ansible_mounts }}"
+  loop_control:
+      label: "{{ item.device }}"
+  when:
+      - "'/var/tmp' in mount_names"
+      - item.mount == "/var/tmp"
+      - rhel8cis_rule_1_1_4_1  # This is required so the check takes place
+      - rhel8cis_rule_1_1_4_2 or
+        rhel8cis_rule_1_1_4_3 or
+        rhel8cis_rule_1_1_4_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - mounts
+      - skip_ansible_lint
+      - rule_1.1.4.2
+      - rule_1.1.4.3
+      - rule_1.1.4.4
+
+---
+
+- name: "1.1.5.1 | AUDIT | Ensure separate partition exists for /var/log"
+  block:
+      - name: "1.1.5.1 | AUDIT | Ensure separate partition exists for /var/log | Warn if partition is absent"
+        debug:
+            msg: "Warning!! {{ required_mount }} doesn't exist. This is a manual task"
+        register: var_log_mount_absent
+        changed_when: var_log_mount_absent.skipped is undefined
+
+      - name: "1.1.5.1 | AUDIT | Ensure separate partition exists for /var/log | Present"
+        ansible.builtin.import_tasks: warning_facts.yml
+
+  vars:
+      warn_control_id: '1.1.5.1'
+      required_mount: '/var/log'
+  when:
+      - rhel8cis_rule_1_1_5_1
+      - "'/var/log' not in mount_names"
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - audit
+      - mounts
+      - rule_1.1.5.1
+      - skip_ansible_lint
+
+# skips if mount is absent
+- name: |
+          "1.1.5.2 | PATCH | Ensure nodev option set on /var/log partition"
+          "1.1.5.3 | PATCH | Ensure noexec option set on /var/log partition"
+          "1.1.5.4 | PATCH | Ensure nosuid option set on /var/log partition"
+  mount:
+      name: /var/log
+      src: "{{ item.device }}"
+      fstype: "{{ item.fstype }}"
+      state: present
+      opts: defaults,{% if rhel8cis_rule_1_1_5_3 %}noexec,{% endif %}{% if rhel8cis_rule_1_1_5_2 %}nodev,{% endif %}{% if rhel8cis_rule_1_1_5_4 %}nosuid{% endif %}
+  notify: change_requires_reboot
+  with_items:
+      - "{{ ansible_mounts }}"
+  loop_control:
+      label: "{{ item.device }}"
+  when:
+      - "'/var/log' in mount_names"
+      - item.mount == "/var/log"
+      - rhel8cis_rule_1_1_5_1  # This is required so the check takes place
+      - rhel8cis_rule_1_1_5_2 or
+        rhel8cis_rule_1_1_5_3 or
+        rhel8cis_rule_1_1_5_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - mounts
+      - skip_ansible_lint
+      - rule_1.1.5.2
+      - rule_1.1.5.3
+      - rule_1.1.5.4
+
+---
+
+- name: "1.1.6.1 | AUDIT | Ensure separate partition exists for /var/log/audit"
+  block:
+      - name: "1.1.6.1 | AUDIT | Ensure separate partition exists for /var/log/audit | Warn if partition is absent"
+        debug:
+            msg: "Warning!! {{ required_mount }} doesn't exist. This is a manual task"
+        register: var_log_audit_mount_absent
+        changed_when: var_log_audit_mount_absent.skipped is undefined
+
+      - name: "1.1.6.1 | AUDIT | Ensure separate partition exists for /var/log/audit | Present"
+        ansible.builtin.import_tasks: warning_facts.yml
+
+  vars:
+      warn_control_id: '1.1.6.1'
+      required_mount: '/var/log/audit'
+  when:
+      - rhel8cis_rule_1_1_6_1
+      - "'/var/log/audit' not in mount_names"
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - audit
+      - mounts
+      - rule_1.1.6.1
+
+# skips if mount is absent
+- name: |
+          "1.1.6.2 | PATCH | Ensure noexec option set on /var/log/audit partition"
+          "1.1.6.3 | PATCH | Ensure nodev option set on /var/log/audit partition"
+          "1.1.6.4 | PATCH | Ensure nosuid option set on /var/log/audit partition"
+  mount:
+      name: /var/log/audit
+      src: "{{ item.device }}"
+      fstype: "{{ item.fstype }}"
+      state: present
+      opts: defaults,{% if rhel8cis_rule_1_1_6_2 %}noexec,{% endif %}{% if rhel8cis_rule_1_1_6_3 %}nodev,{% endif %}{% if rhel8cis_rule_1_1_6_4 %}nosuid{% endif %}
+  notify: change_requires_reboot
+  with_items:
+      - "{{ ansible_mounts }}"
+  loop_control:
+      label: "{{ item.device }}"
+  when:
+      - "'/var/log/audit' in mount_names"
+      - item.mount == "/var/log/audit"
+      - rhel8cis_rule_1_1_6_1  # This is required so the check takes place
+      - rhel8cis_rule_1_1_6_2 or
+        rhel8cis_rule_1_1_6_3 or
+        rhel8cis_rule_1_1_6_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - mounts
+      - skip_ansible_lint
+      - rule_1.1.6.2
+      - rule_1.1.6.3
+      - rule_1.1.6.4
+
+---
+
+- name: "1.1.7.1 | AUDIT | Ensure separate partition exists for /home"
+  block:
+      - name: "1.1.7.1 | AUDIT | Ensure separate partition exists for /home | Warn if partition is absent"
+        debug:
+            msg: "Warning!! {{ required_mount }} doesn't exist. This is a manual task"
+        register: home_mount_absent
+        changed_when: home_mount_absent.skipped is undefined
+
+      - name: "1.1.7.1 | AUDIT | Ensure separate partition exists for /home | Present"
+        ansible.builtin.import_tasks: warning_facts.yml
+
+  vars:
+      warn_control_id: '1.1.7.1'
+      required_mount: '/home'
+  when:
+      - rhel8cis_rule_1_1_7_1
+      - "'/home' not in mount_names"
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - audit
+      - mounts
+      - rule_1.1.7.1
+      - skip_ansible_lint
+
+# skips if mount is absent
+- name: |
+    "1.1.7.2 | PATCH | Ensure nodev option set on /home partition
+     1.1.7.3 | PATCH | Ensure nosuid option set on /home partition
+     1.1.7.4 | PATCH | Ensure usrquota option set on /home partition
+     1.1.7.5 | PATCH | Ensure grpquota option set on /home partition"
+  mount:
+      name: /home
+      src: "{{ item.device }}"
+      fstype: "{{ item.fstype }}"
+      state: present
+      opts: defaults,{% if rhel8cis_rule_1_1_7_2 %}nodev,{% endif %}{% if rhel8cis_rule_1_1_7_3 %}nosuid,{% endif %}{% if rhel8cis_rule_1_1_7_4 %}usrquota,{% endif %}{% if rhel8cis_rule_1_1_7_5 %}grpquota{% endif %}
+  notify: change_requires_reboot
+  with_items:
+      - "{{ ansible_mounts }}"
+  loop_control:
+      label: "{{ item.device }}"
+  when:
+      - "'/home' in mount_names"
+      - item.mount == "/home"
+      - rhel8cis_rule_1_1_7_1
+      - rhel8cis_rule_1_1_7_2 or
+        rhel8cis_rule_1_1_7_3 or
+        rhel8cis_rule_1_1_7_4 or
+        rhel8cis_rule_1_1_7_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - mounts
+      - rule_1.1.7.2
+      - rule_1.1.7.3
+      - rule_1.1.7.4
+      - skip_ansible_lint
+
+---
+
+# Skips if mount is absent
+- name: |
+         "1.1.8.1 | PATCH | Ensure nodev option set on /dev/shm partition
+          1.1.8.2 | PATCH | Ensure nosuid option set on /dev/shm partition
+          1.1.8.3 | PATCH | Ensure noexec option set on /dev/shm partition"
+  block:
+      - name: |
+         "1.1.8.1 | AUDIT | Ensure nodev option set on /dev/shm partition | Check for /dev/shm existence
+          1.1.8.2 | AUDIT | Ensure nosuid option set on /dev/shm partition | Check for /dev/shm existence
+          1.1.8.3 | AUDIT | Ensure noexec option set on /dev/shm partition | Check for /dev/shm existence"
+        shell: mount -l | grep -E '\s/dev/shm\s'
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_1_1_8_x_dev_shm_status
+
+      - name: |
+              "1.1.8.1 | PATCH | Ensure nodev option set on /dev/shm partition | Set nodev option
+               1.1.8.2 | PATCH | Ensure noexec option set on /dev/shm partition | Set nosuid option
+               1.1.8.3 | PATCH | Ensure nosuid option set on /dev/shm partition | Set noexec option"
+        mount:
+            name: /dev/shm
+            src: tmpfs
+            fstype: tmpfs
+            state: mounted
+            opts: defaults,{% if rhel8cis_rule_1_1_8_2 %}noexec,{% endif %}{% if rhel8cis_rule_1_1_8_1 %}nodev,{% endif %}{% if rhel8cis_rule_1_1_8_3 %}nosuid{% endif %}
+        when: "'dev/shm' in rhel8cis_1_1_8_x_dev_shm_status.stdout"
+        notify: change_requires_reboot
+  when:
+      - rhel8cis_rule_1_1_8_1 or
+        rhel8cis_rule_1_1_8_2 or
+        rhel8cis_rule_1_1_8_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - mounts
+      - rule_1.1.8.1
+      - rule_1.1.8.2
+      - rule_1.1.8.3
+
+---
+
+- name: "1.1.9 | PATCH | Disable Automounting"
+  service:
+      name: autofs
+      enabled: false
+  when:
+      - not rhel8cis_allow_autofs
+      - "'autofs' in ansible_facts.packages"
+      - rhel8cis_rule_1_1_9
+  tags:
+      - level1-server
+      - level2-workstation
+      - automated
+      - patch
+      - mounts
+      - automounting
+      - rule_1.1.9
+
+- name: "1.1.10 | PATCH | Disable USB Storage"
+  block:
+      - name: "1.1.10 | PATCH | Disable USB Storage | Edit modprobe config"
+        lineinfile:
+            path: /etc/modprobe.d/CIS.conf
+            regexp: "^(#)?install usb-storage(\\s|$)"
+            line: "install usb-storage /bin/true"
+            create: true
+            owner: root
+            group: root
+            mode: 0600
+
+      - name: "1.1.10 | PATCH | Disable USB Storage | | blacklist"
+        lineinfile:
+            path: /etc/modprobe.d/blacklist.conf
+            regexp: "^(#)?blacklist usb-storage(\\s|$)"
+            line: "blacklist usb-storage"
+            create: true
+            mode: 0600
+
+      - name: "1.1.10 | PATCH | Disable USB Storage | Edit modprobe config"
+        modprobe:
+            name: usb-storage
+            state: absent
+  when:
+      - rhel8cis_rule_1_1_10
+  tags:
+      - level1-server
+      - level2-workstation
+      - automated
+      - patch
+      - mounts
+      - removable_storage
+      - rule_1.1.10
+
+---
+
+- name: "1.2.1 | PATCH | Ensure Red Hat Subscription Manager connection is configured"
+  redhat_subscription:
+      state: present
+      username: "{{ rhel8cis_rh_sub_user }}"
+      password: "{{ rhel8cis_rh_sub_password }}"
+      auto_attach: true
+  no_log: true
+  when:
+      - ansible_distribution == "RedHat"
+      - rhel8cis_rhnsd_required
+      - rhel8cis_rule_1_2_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - rule_1.2.1
+      - skip_ansible_lint  # Added as no_log still errors on ansible-lint
+
+- name: "1.2.2 | AUDIT | Ensure GPG keys are configured"
+  shell: "PKG=`rpm -qf {{ rpm_gpg_key }}` && rpm -q --queryformat \"%{PACKAGER} %{SIGPGP:pgpsig}\\n\" \"${PKG}\" | grep \"^{{ rpm_packager }}.*Key.ID.{{ rpm_key }}\""
+  changed_when: false
+  when:
+      - rhel8cis_rule_1_2_2
+      - ansible_distribution == "RedHat" or
+        ansible_distribution == "Rocky" or
+        ansible_distribution == "AlmaLinux" or
+        ansible_distribution == "OracleLinux"
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - rule_1.2.2
+
+- name: "1.2.3| PATCH | Ensure gpgcheck is globally activated"
+  block:
+      - name: "1.2.3 | AUDIT | Ensure gpgcheck is globally activated | Find repos"
+        find:
+            paths: /etc/yum.repos.d
+            patterns: "*.repo"
+        register: yum_repos
+        changed_when: false
+
+      - name: "1.2.3 | PATCH | Ensure gpgcheck is globally activated | Update yum.repos"
+        replace:
+            name: "{{ item.path }}"
+            regexp: "^gpgcheck=0"
+            replace: "gpgcheck=1"
+        with_items:
+            - "{{ yum_repos.files }}"
+        loop_control:
+            label: "{{ item.path }}"
+  when:
+      - rhel8cis_rule_1_2_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_1.2.3
+
+- name: "1.2.4 | AUDIT | Ensure package manager repositories are configured"
+  block:
+      - name: "1.2.4 | AUDIT | Ensure package manager repositories are configured | Get repo list"
+        command: dnf repolist
+        changed_when: false
+        failed_when: false
+        register: dnf_configured
+        check_mode: false
+
+      - name: "1.2.4 | AUDIT | Ensure package manager repositories are configured | Display repo list"
+        debug:
+            msg:
+                - "Warning!! Below are the configured repos. Please review and make sure all align with site policy"
+                - "{{ dnf_configured.stdout_lines }}"
+
+      - name: "1.2.4 | AUDIT | Ensure package manager repositories are configured | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+  vars:
+      warn_control_id: '1.2.4'
+  when:
+      - rhel8cis_rule_1_2_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - audit
+      - rule_1.2.4
+      - skip_ansible_lint
+
+---
+
+- name: "1.3.1 | PATCH | Ensure AIDE is installed"
+  block:
+      - name: "1.3.1 | PATCH | Ensure AIDE is installed | Install AIDE"
+        package:
+            name: aide
+            state: present
+
+      - name: "1.3.1 | PATCH | Ensure AIDE is installed | Configure AIDE"
+        command: /usr/sbin/aide --init -B 'database_out=file:/var/lib/aide/aide.db.gz'
+        changed_when: false
+        failed_when: false
+        async: 45
+        poll: 0
+        args:
+            creates: /var/lib/aide/aide.db.gz
+        when: not ansible_check_mode
+  when:
+      - rhel8cis_config_aide
+      - rhel8cis_rule_1_3_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - aide
+      - patch
+      - rule_1.3.1
+
+- name: "1.3.2 | PATCH | Ensure filesystem integrity is regularly checked"
+  cron:
+      name: Run AIDE integrity check
+      cron_file: "{{ rhel8cis_aide_cron['cron_file'] }}"
+      user: "{{ rhel8cis_aide_cron['cron_user'] }}"
+      minute: "{{ rhel8cis_aide_cron['aide_minute'] | default('0') }}"
+      hour: "{{ rhel8cis_aide_cron['aide_hour'] | default('5') }}"
+      day: "{{ rhel8cis_aide_cron['aide_day'] | default('*') }}"
+      month: "{{ rhel8cis_aide_cron['aide_month'] | default('*') }}"
+      weekday: "{{ rhel8cis_aide_cron['aide_weekday'] | default('*') }}"
+      job: "{{ rhel8cis_aide_cron['aide_job'] }}"
+  when:
+      - rhel8cis_rule_1_3_2
+      - not system_is_ec2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - aide
+      - file_integrity
+      - patch
+      - rule_1.3.2
+
+---
+
+- name: "1.4.1 | PATCH | Ensure bootloader password is set"
+  copy:
+      dest: /boot/grub2/user.cfg  # noqa template-instead-of-copy
+      content: "GRUB2_PASSWORD={{ rhel8cis_bootloader_password_hash }}"
+      owner: root
+      group: root
+      mode: 0600
+  notify: rhel8cis_grub2cfg
+  when:
+      - rhel8cis_set_boot_pass
+      - rhel8cis_rule_1_4_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - grub
+      - patch
+      - rule_1.4.1
+
+- name: "1.4.2 | PATCH | Ensure permissions on bootloader config are configured"
+  block:
+      - name: "1.4.2 | PATCH | Ensure permissions on bootloader config are configured"
+        file:
+            path: "{{ grub_cfg.stat.lnk_source }}"
+            owner: root
+            group: root
+            mode: 0600
+
+      - name: "1.4.2 | PATCH | Ensure permissions on bootloader config are configured | UEFI"
+        mount:
+            name: /boot/efi
+            src: "UUID={{ item.uuid }}"
+            fstype: vfat
+            state: present
+            opts: defaults,umask=0027,fmask=0077,uid=0,gid=0
+            passno: '0'
+        with_items:
+            - "{{ ansible_mounts }}"
+        loop_control:
+            label: "{{ item.mount }}"
+        when:
+            - not rhel8cis_legacy_boot
+            - item.mount == "/boot/efi"
+  when:
+      - rhel8cis_rule_1_4_2
+      - grub_cfg.stat.exists
+      - grub_cfg.stat.islnk
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - grub
+      - patch
+      - rule_1.4.2
+
+- name: "1.4.3 | PATCH | Ensure authentication is required when booting into rescue mode"
+  lineinfile:
+      path: /etc/systemd/system/rescue.service.d/00-require-auth.conf
+      regexp: '^ExecStart='
+      line: "ExecStart=-/usr/lib/systemd/systemd-sulogin-shell rescue"
+      create: true
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_1_4_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_1.4.3
+
+---
+
+- name: "1.5.1 | PATCH | Ensure core dump storage is disabled"
+  lineinfile:
+      path: /etc/systemd/coredump.conf
+      regexp: 'Storage='
+      line: 'Storage=none'
+  notify: systemd_daemon_reload
+  when:
+      - rhel8cis_rule_1_5_1
+      - systemd_coredump.stat.exists
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_1.5.1
+
+- name: "1.5.2 | PATCH | Ensure core dump backtraces are disabled"
+  lineinfile:
+      path: /etc/systemd/coredump.conf
+      regexp: 'ProcessSizeMax='
+      line: 'ProcessSizeMax=0'
+  when:
+      - rhel8cis_rule_1_5_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_1.5.2
+
+- name: "1.5.3 | PATCH | Ensure address space layout randomization (ASLR) is enabled"
+  sysctl:
+      name: kernel.randomize_va_space
+      value: '2'
+      state: present
+      reload: true
+      sysctl_set: true
+      ignoreerrors: true
+  when:
+      - rhel8cis_rule_1_5_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_1.5.3
+
+---
+
+- name: "1.6.1.1 | PATCH | Ensure SELinux is installed"
+  package:
+      name: libselinux
+      state: present
+  when:
+      - rhel8cis_rule_1_6_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_1.6.1.1
+
+- name: "1.6.1.2 | PATCH | Ensure SELinux is not disabled in bootloader configuration"
+  replace:
+      path: /etc/default/grub
+      regexp: '(selinux|enforcing)\s*=\s*0\s*'
+      replace: ''
+  register: selinux_grub_patch
+  ignore_errors: true  # noqa ignore-errors
+  notify: rhel8cis_grub2cfg
+  when:
+      - rhel8cis_rule_1_6_1_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_1.6.1.2
+
+# State set to enforcing because control 1.6.1.5 requires enforcing to be set
+- name: "1.6.1.3 | PATCH | Ensure SELinux policy is configured"
+  selinux:
+      conf: /etc/selinux/config
+      policy: "{{ rhel8cis_selinux_pol }}"
+      state: enforcing
+  when:
+      - not rhel8cis_selinux_disable
+      - rhel8cis_rule_1_6_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - selinux
+      - patch
+      - rule_1.6.1.3
+
+# State set to enforcing because control 1.6.1.5 requires enforcing to be set
+- name: "1.6.1.4 | PATCH | Ensure the SELinux mode is not disabled"
+  selinux:
+      conf: /etc/selinux/config
+      policy: "{{ rhel8cis_selinux_pol }}"
+      state: enforcing
+  when:
+      - not rhel8cis_selinux_disable
+      - rhel8cis_rule_1_6_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - auotmated
+      - selinux
+      - patch
+      - rule_1.6.1.4
+
+- name: "1.6.1.5 | PATCH | Ensure the SELinux state is enforcing"
+  selinux:
+      conf: /etc/selinux/config
+      policy: "{{ rhel8cis_selinux_pol }}"
+      state: enforcing
+  when:
+      - not rhel8cis_selinux_disable
+      - rhel8cis_rule_1_6_1_5
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - selinux
+      - patch
+      - rule_1.6.1.5
+
+- name: "1.6.1.6 | AUDIT | Ensure no unconfined services exist"
+  block:
+      - name: "1.6.1.6 | AUDIT | Ensure no unconfined services exist | Find the unconfined services"
+        shell: ps -eZ | grep unconfined_service_t | egrep -vw "tr|ps|egrep|bash|awk" | tr ':' ' ' | awk '{ print $NF }'
+        register: rhelcis_1_6_1_6_unconf_services
+        failed_when: false
+        changed_when: false
+
+      - name: "1.6.1.6 | AUDIT | Ensure no unconfined services exist | Message on unconfined services"
+        debug:
+            msg: "Warning!! You have unconfined services: {{ rhelcis_1_6_1_6_unconf_services.stdout_lines }}"
+        when: rhelcis_1_6_1_6_unconf_services.stdout | length > 0
+
+      - name: "1.6.1.6 | AUDIT | Ensure no unconfined services exist | warning count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        when: rhelcis_1_6_1_6_unconf_services.stdout | length > 0
+  vars:
+      warn_control_id: '1.6.1.6'
+  when:
+      - rhel8cis_rule_1_6_1_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - services
+      - rule_1.6.1.6
+
+- name: "1.6.1.7 | PATCH | Ensure SETroubleshoot is not installed"
+  package:
+      name: setroubleshoot
+      state: absent
+  when:
+      - rhel8cis_rule_1_6_1_7
+      - "'setroubleshoot' in ansible_facts.packages"
+  tags:
+      - level1-server
+      - automated
+      - selinux
+      - patch
+      - rule_1.6.1.7
+
+- name: "1.6.1.8 | PATCH | Ensure the MCS Translation Service (mcstrans) is not installed"
+  package:
+      name: mcstrans
+      state: absent
+  when:
+      - rhel8cis_rule_1_6_1_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_1.6.1.8
+
+---
+
+- name: "1.7.1 | PATCH | Ensure message of the day is configured properly"
+  template:
+      src: etc/motd.j2
+      dest: /etc/motd
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_1_7_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - banner
+      - patch
+      - rule_1.7.1
+
+- name: "1.7.2 | PATCH | Ensure local login warning banner is configured properly"
+  template:
+      src: etc/issue.j2
+      dest: /etc/issue
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_1_7_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_1.7.2
+
+- name: "1.7.3 | PATCH | Ensure remote login warning banner is configured properly"
+  template:
+      src: etc/issue.net.j2
+      dest: /etc/issue.net
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_1_7_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - banner
+      - patch
+      - rule_1.7.3
+
+- name: "1.7.4 | PATCH | Ensure permissions on /etc/motd are configured"
+  file:
+      path: /etc/motd
+      state: file
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_1_7_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - perms
+      - patch
+      - rule_1.7.4
+
+- name: "1.7.5 | PATCH | Ensure permissions on /etc/issue are configured"
+  file:
+      path: /etc/issue
+      state: file
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_1_7_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - perms
+      - patch
+      - rule_1.7.5
+
+- name: "1.7.6 | PATCH | Ensure permissions on /etc/issue.net are configured"
+  file:
+      path: /etc/issue.net
+      state: file
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_1_7_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - perms
+      - patch
+      - rule_1.7.6
+
+---
+
+- name: "1.8.1 | PATCH | Ensure GNOME Display Manager is removed"
+  package:
+      name: gdm
+      state: absent
+  when:
+      - rhel8cis_rule_1_8_1
+      - "'gdm' in ansible_facts.packages"
+      - not rhel8cis_gui
+  tags:
+      - level2-server
+      - automated
+      - patch
+      - gui
+      - gdm
+      - rule_1.8.1
+
+- name: "1.8.2 | PATCH | Ensure GDM login banner is configured"
+  lineinfile:
+      path: "{{ item.file }}"
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+      create: true
+      owner: root
+      group: root
+      mode: 0644
+  notify: reload dconf
+  with_items:
+      - { file: '/etc/dconf/profile/gdm', regexp: 'user-db', line: 'user-db:user' }
+      - { file: '/etc/dconf/profile/gdm', regexp: 'system-db', line: 'system-db:gdm' }
+      - { file: '/etc/dconf/profile/gdm', regexp: 'file-db', line: 'file-db:/usr/share/gdm/greeter-dconf-defaults' }
+      - { file: '/etc/dconf/db/gdm.d/01-banner-message', regexp: '\[org\/gnome\/login-screen\]', line: '[org/gnome/login-screen]' }
+      - { file: '/etc/dconf/db/gdm.d/01-banner-message', regexp: 'banner-message-enable', line: 'banner-message-enable=true' }
+      - { file: '/etc/dconf/db/gdm.d/01-banner-message', regexp: 'banner-message-text', line: "banner-message-text='{{ rhel8cis_warning_banner | replace('\n', ' ') }}' " }
+  when:
+      - rhel8cis_rule_1_8_2
+      - rhel8cis_gui
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - gui
+      - gdm
+      - rule_1.8.2
+
+- name: "1.8.3 | PATCH | Ensure last logged in user display is disabled"
+  lineinfile:
+      path: "{{ item.file }}"
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+      create: true
+      owner: root
+      group: root
+      mode: 0644
+  notify: reload dconf
+  with_items:
+      - { file: '/etc/dconf/profile/gdm', regexp: 'user-db', line: 'user-db:user' }
+      - { file: '/etc/dconf/profile/gdm', regexp: 'system-db', line: 'system-db:gdm' }
+      - { file: '/etc/dconf/profile/gdm', regexp: 'file-db', line: 'file-db:/usr/share/gdm/greeter-dconf-defaults'}
+      - { file: '/etc/dconf/db/gdm.d/00-login-screen', regexp: '\[org\/gnome\/login-screen\]', line: '[org/gnome/login-screen]' }
+      - { file: '/etc/dconf/db/gdm.d/00-login-screen', regexp: 'disable-user-list=', line: 'disable-user-list=true' }
+  when:
+      - rhel8cis_rule_1_8_3
+      - rhel8cis_gui
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - gui
+      - rule_1.8.3
+
+- name: "1.8.4 | PATCH | Ensure XDMCP is not enabled"
+  lineinfile:
+      path: /etc/gdm/custom.conf
+      regexp: 'Enable=true'
+      state: absent
+  when:
+      - rhel8cis_rule_1_8_4
+      - rhel8cis_gui
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - gui
+      - rule_1.8.4
+
+- name: "1.8.5 | PATCH | Ensure automatic mounting of removable media is disabled"
+  lineinfile:
+      path: /etc/dconf/db/local.d/00-media-automount
+      regexp: "{{ item.regex }}"
+      line: "{{ item.line }}"
+      create: true
+      owner: root
+      group: root
+      mode: 0640
+  notify: reload dconf
+  with_items:
+      - { regex: '\[org\/gnome\/desktop\/media-handling\]', line: '[org/gnome/desktop/media-handling]' }
+      - { regex: 'automount=', line: 'automount=false' }
+      - { regex: 'automount-open=', line: 'automount-open=false'}
+  when:
+      - rhel8cis_rule_1_8_5
+      - rhel8cis_gui
+  tags:
+      - level1-server
+      - level2-workstation
+      - automated
+      - patch
+      - gui
+      - rule_1.8.5
+
+---
+
+- name: "1.9 | PATCH | Ensure updates, patches, and additional security software are installed"
+  package:
+      name: "*"
+      state: latest
+  notify: change_requires_reboot
+  when:
+      - rhel8cis_rule_1_9
+      - not system_is_ec2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_1.9
+      - skip_ansible_lint
+
+---
+
+- name: "1.10 | PATCH | Ensure system-wide crypto policy is not legacy"
+  shell: |
+      update-crypto-policies --set "{{ rhel8cis_crypto_policy }}"
+      update-crypto-policies
+  notify: change_requires_reboot
+  when:
+      - rhel8cis_rule_1_10
+      - rhel8cis_crypto_policy|string not in system_wide_crypto_policy['stdout']
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - no system_is_ec2
+      - patch
+      - rule_1.10
+
+
+---
+
+- name: "2.1.1 | PATCH | Ensure time synchronization is in use"
+  package:
+      name: "{{ rhel8cis_time_synchronization }}"
+      state: present
+  when:
+      - rhel8cis_rule_2_1_1
+      - not system_is_container
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_2.1.1
+
+- name: "2.1.2 | PATCH | Ensure chrony is configured"
+  block:
+      - name: "2.1.2 | PATCH | Ensure chrony is configured | Set configuration"
+        template:
+            src: chrony.conf.j2
+            dest: /etc/chrony.conf
+            owner: root
+            group: root
+            mode: 0644
+
+      - name: "2.1.2 | PATCH | Ensure chrony is configured | modify /etc/sysconfig/chronyd | 1"
+        lineinfile:
+            path: /etc/sysconfig/chronyd
+            regexp: "^(#)?OPTIONS"
+            line: "OPTIONS=\"-u chrony\""
+            create: true
+            mode: 0644
+  when:
+      - rhel8cis_time_synchronization == "chrony"
+      - rhel8cis_rule_2_1_2
+      - not system_is_container
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_2.1.2
+
+---
+
+- name: "2.2.1 | PATCH | Ensure xinetd is not installed"
+  package:
+      name: xinetd
+      state: absent
+  when:
+      - rhel8cis_rule_2_2_1
+      - not rhel8cis_xinetd_server
+      - "'xinetd' in ansible_facts.packages"
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_2.2.1
+
+- name: "2.2.2 | PATCH | Ensure xorg-x11-server-common is not installed"
+  package:
+      name: xorg-x11-server-common
+      state: absent
+  when:
+      - rhel8cis_rule_2_2_2
+      - "'xorg-x11-server-common' in ansible_facts.packages"
+      - not rhel8cis_xwindows_required or not rhel8cis_gui
+  tags:
+      - level1-server
+      - automated
+      - patch
+      - x11
+      - rule_2.2.2
+
+- name: "2.2.3 | PATCH | Ensure Avahi Server is not installed"
+  package:
+      name:
+          - avahi-autoipd
+          - avahi
+      state: absent
+  when:
+      - rhel8cis_rule_2_2_3
+      - not rhel8cis_avahi_server
+      - "'avahi' in ansible_facts.packages or 'avahi-autopd' in ansible_facts.packages"
+  tags:
+      - level1-server
+      - level2-workstation
+      - automated
+      - patch
+      - avahi
+      - rule_2.2.3
+
+- name: "2.2.4 | PATCH | Ensure CUPS is not installed"
+  package:
+      name: cups
+      state: absent
+  when:
+      - not rhel8cis_cups_server
+      - "'cups' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_3
+  tags:
+      - level1-server
+      - automated
+      - patch
+      - cups
+      - rule_2.2.4
+
+- name: "2.2.5 | PATCH | Ensure DHCP Server is not installed"
+  package:
+      name: dhcp-server
+      state: absent
+  when:
+      - not rhel8cis_dhcp_server
+      - "'dhcp-server' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - audtomated
+      - patch
+      - dhcp
+      - rule_2.2.5
+
+- name: "2.2.6 | PATCH | Ensure DNS Server is not installed"
+  package:
+      name: bind
+      state: absent
+  when:
+      - not rhel8cis_dns_server
+      - "'bind' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - dns
+      - rule_2.2.6
+
+- name: "2.2.7 | PATCH | Ensure FTP Server is not installed"
+  package:
+      name: ftp
+      state: absent
+  when:
+      - not rhel8cis_ftp_server
+      - "'ftp' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automation
+      - patch
+      - ftp
+      - rule_2.2.7
+
+- name: "2.2.8 | PATCH | Ensure VSFTP Server is not installed"
+  package:
+      name: vsftpd
+      state: absent
+  when:
+      - not rhel8cis_vsftpd_server
+      - "'vsftpd' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - vsftpd
+      - rule_2.2.8
+
+- name: "2.2.9 | PACH | Ensure TFTP Server is not installed"
+  package:
+      name: tftp-server
+      state: absent
+  when:
+      - not rhel8cis_tftp_server
+      - "'tftp-server' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - tftp
+      - rule_2.2.9
+
+- name: "2.2.10 | PATCH | Ensure a web server is not installed"
+  block:
+      - name: "2.2.10 | PATCH | Ensure a web server is not installed | Remove httpd server"
+        package:
+            name: httpd
+            state: absent
+        when:
+            - not rhel8cis_httpd_server
+            - "'httpd' in ansible_facts.packages"
+
+      - name: "2.2.10 | PATCH | Ensure a web server is not installed | Remove nginx server"
+        package:
+            name: nginx
+            state: absent
+        when:
+            - not rhel8cis_nginx_server
+            - "'nginx' in ansible_facts.packages"
+  when:
+      - rhel8cis_rule_2_2_10
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - httpd
+      - nginx
+      - webserver
+      - rule_2.2.10
+
+- name: "2.2.11 | PATCH | Ensure IMAP and POP3 server is not installed"
+  package:
+      name:
+          - dovecot
+          - cyrus-imapd
+      state: absent
+  when:
+      - not rhel8cis_dovecot_cyrus_server
+      - "'dovecot' in ansible_facts.packages or 'cyrus-imapd' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_11
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - dovecot
+      - imap
+      - pop3
+      - rule_2.2.11
+
+- name: "2.2.12 | PATCH | Ensure Samba is not enabled"
+  package:
+      name: samba
+      state: absent
+  when:
+      - not rhel8cis_samba_server
+      - "'samba' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_12
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - samba
+      - rule_2.2.12
+
+- name: "2.2.13 | PATCH | Ensure HTTP Proxy Server is not installed"
+  package:
+      name: squid
+      state: absent
+  when:
+      - not rhel8cis_squid_server
+      - "'squid' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automation
+      - patch
+      - squid
+      - rule_2.2.13
+
+- name: "2.2.14 | PATCH | Ensure net-snmp is not installed"
+  package:
+      name: net-snmp
+      state: absent
+  when:
+      - not rhel8cis_net_snmp_server
+      - "'net-snmp' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_14
+  tags:
+      - level1-server
+      - level1-workstation
+      - automation
+      - patch
+      - snmp
+      - rule_2.2.14
+
+- name: "2.2.15 | PATCH | Ensure NIS Server is not installed"
+  package:
+      name: ypserv
+      state: absent
+  when:
+      - not rhel8cis_nis_server
+      - "'ypserv' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_15
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nis
+      - rule_2.2.15
+
+- name: "2.2.16 | PATCH | Ensure telnet-server is not installed"
+  package:
+      name: telnet-server
+      state: absent
+  when:
+      - not rhel8cis_telnet_server
+      - "'telnet-server' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_16
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - telnet
+      - rule_2.2.16
+
+- name: "2.2.17 | PATCH | Ensure mail transfer agent is configured for local-only mode"
+  lineinfile:
+      path: /etc/postfix/main.cf
+      regexp: "^(#)?inet_interfaces"
+      line: "inet_interfaces = loopback-only"
+  notify: restart postfix
+  when:
+      - not rhel8cis_is_mail_server
+      - "'postfix' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_17
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - postfix
+      - rule_2.2.17
+
+# The name title of the service says mask the service or remove packages
+# We went with masking the service due to ipa-client and other elements that are dependant on nfs-utils
+- name: "2.2.18 | PATCH | Ensure nfs-utils is not installed or the nfs-server service is masked"
+  systemd:
+      name: nfs-utils
+      masked: true
+      state: stopped
+  when:
+      - not rhel8cis_nfs_server
+      - "'nfs-utils' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_18
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nfs
+      - services
+      - rule_2.2.18
+
+# The name title of the service says mask the service or remove packages
+# We went with masking the service due to ipa-client and other elements that are dependant on rpcbind
+- name: "2.2.19 | PATCH | Ensure rpcbind is not installed or the rpcbind services are masked"
+  systemd:
+      name: "{{ item }}"
+      masked: true
+      state: stopped
+  with_items:
+      - rpcbind
+      - rpcbind.socket
+  when:
+      - not rhel8cis_rpc_server
+      - "'rpcbind' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_19
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rpc
+      - rule_2.2.19
+
+# The name title of the service says mask the service, but the fix allows for both options
+# We went with removing to remove the security/update overhead with having the package installed
+- name: "2.2.20 | PATCH | Ensure rsync service is not enabled "
+  package:
+      name: rsync
+      state: absent
+  when:
+      - not rhel8cis_rsync_server
+      - "'rsync' in ansible_facts.packages"
+      - rhel8cis_rule_2_2_20
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rsync
+      - rule_2.2.20
+
+---
+
+- name: "2.3.1 | PATCH | Ensure NIS Client is not installed"
+  package:
+      name: ypbind
+      state: absent
+  when:
+      - not rhel8cis_ypbind_required
+      - "'ypbind' in ansible_facts.packages"
+      - rhel8cis_rule_2_3_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nis
+      - rule_2.3.1
+
+- name: "2.3.2 | PATCH | Ensure rsh client is not installed"
+  package:
+      name: rsh
+      state: absent
+  when:
+      - not rhel8cis_rsh_required
+      - "'rsh' in ansible_facts.packages"
+      - rhel8cis_rule_2_3_2
+  tags:
+      - level1-server
+      - level2-server
+      - automated
+      - patch
+      - rsh
+      - rule_2.3.2
+
+- name: "2.3.3 | PATCH | Ensure talk client is not installed"
+  package:
+      name: talk
+      state: absent
+  when:
+      - not rhel8cis_talk_required
+      - "'talk' in ansible_facts.packages"
+      - rhel8cis_rule_2_3_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - talk
+      - rule_2.3.3
+
+- name: "2.3.4 | PATCH | Ensure telnet client is not installed"
+  package:
+      name: telnet
+      state: absent
+  when:
+      - not rhel8cis_telnet_required
+      - "'telnet' in ansible_facts.packages"
+      - rhel8cis_rule_2_3_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - telnet
+      - rule_2.3.4
+
+- name: "2.3.5 | PATCH | Ensure LDAP client is not installed"
+  package:
+      name: openldap-clients
+      state: absent
+  when:
+      - not rhel8cis_openldap_clients_required
+      - "'openldap-clients' in ansible_facts.packages"
+      - rhel8cis_rule_2_3_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ldap
+      - rule_2.3.5
+
+- name: "2.3.6 | PATCH | Ensure TFTP client is not installed"
+  package:
+      name: tftp
+      state: absent
+  when:
+      - not rhel8cis_tftp_client
+      - "'tftp' in ansible_facts.packages"
+      - rhel8cis_rule_2_3_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - tftp
+      - rule_2.3.6
+
+---
+
+- name: "2.4 | AUDIT | Ensure nonessential services are removed or masked"
+  block:
+      - name: "2.4 | AUDIT | Ensure nonessential services are removed or masked | Get list of services"
+        shell: systemctl list-units --type=service
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_2_4_services
+
+      - name: "2.4 | AUDIT | Ensure nonessential services are removed or masked | Display list of services"
+        debug:
+            msg:
+                - "Warning!! Below are the list of services, both active and inactive"
+                - "Please review to make sure all are essential"
+                - "{{ rhel8cis_2_4_services.stdout_lines }}"
+
+      - name: "2.4 | AUDIT | Ensure nonessential services are removed or masked | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+  vars:
+      warn_control_id: '2.4'
+  when:
+      - rhel8cis_rule_2_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - audit
+      - services
+      - rule_2.4
+
+
+---
+
+# The CIS Control wants IPv6 disabled if not in use.
+# We are using the rhel8cis_ipv6_required to specify if you have IPv6 in use
+- name: "3.1.1 | PATCH | Verify if IPv6 is enabled on the system"
+  sysctl:
+      name: "{{ item }}"
+      value: '1'
+      state: present
+      reload: true
+  with_items:
+      - net.ipv6.conf.all.disable_ipv6
+      - net.ipv6.conf.default.disable_ipv6
+      - net.ipv6.conf.lo.disable_ipv6
+  when:
+      - not rhel8cis_ipv6_required
+      - rhel8cis_rule_3_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - ipv6
+      - networking
+      - rule_3.1.1
+
+- name: "3.1.2 | PATCH | Ensure SCTP is disabled"
+  block:
+      - name: "3.1.2 | PATCH | Ensure SCTP is disabled | CIS"
+        lineinfile:
+            path: /etc/modprobe.d/CIS.conf
+            regexp: "^(#)?install sctp(\\s|$)"
+            line: "install sctp /bin/true"
+            create: true
+            mode: 0600
+
+      - name: "3.1.2 | PATCH | Ensure SCTP is disabled | blacklist"
+        lineinfile:
+            path: /etc/modprobe.d/blacklist.conf
+            regexp: "^(#)?blacklist sctp(\\s|$)"
+            line: "blacklist sctp"
+            create: true
+            mode: 0600
+  when:
+      - rhel8cis_rule_3_1_2
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - sctp
+      - rule_3.1.2
+
+- name: "3.1.3 | PATCH | Ensure DCCP is disabled"
+  block:
+      - name: "3.1.3 | PATCH | Ensure DCCP is disabled | CIS"
+        lineinfile:
+            path: /etc/modprobe.d/CIS.conf
+            regexp: "^(#)?install dccp(\\s|$)"
+            line: "install dccp /bin/true"
+            create: true
+            mode: 0600
+
+      - name: "3.1.3 | PATCH | Ensure DCCP is disabled | blacklist"
+        lineinfile:
+            path: /etc/modprobe.d/CIS.conf
+            regexp: "^(#)?blacklist dccp(\\s|$)"
+            line: "blacklist dccp"
+            create: true
+            mode: 0600
+  when:
+      - rhel8cis_rule_3_1_3
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - dccp
+      - patch
+      - rule_3.1.3
+
+- name: "3.1.4 | PATCH | Ensure wireless interfaces are disabled"
+  block:
+      - name: "3.1.4 | AUDIT | Ensure wireless interfaces are disabled | Check if nmcli command is available"
+        command: rpm -q NetworkManager
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel_08_nmcli_available
+
+      - name: "3.1.4 | AUDIT | Ensure wireless interfaces are disabled | Check if wifi is enabled"
+        command: nmcli radio wifi
+        register: rhel_08_wifi_enabled
+        changed_when: rhel_08_wifi_enabled.stdout != "disabled"
+        failed_when: false
+        when: rhel_08_nmcli_available.rc == 0
+
+      - name: "3.1.4 | PATCH | Ensure wireless interfaces are disabled | Disable wifi if enabled"
+        command: nmcli radio all off
+        changed_when: false
+        failed_when: false
+        when: rhel_08_wifi_enabled is changed
+  when:
+      - rhel8cis_rule_3_1_4
+  tags:
+      - level1-server
+      - automated
+      - patch
+      - wireless
+      - rule_3.1.4
+
+---
+
+- name: "3.2.1 | PATCH | Ensure IP forwarding is disabled"
+  block:
+      - name: "3.2.1 | PATCH | Ensure IP forwarding is disabled | Disable IPv4 forwarding"
+        sysctl:
+            name: net.ipv4.ip_forward
+            value: '0'
+            state: present
+            reload: true
+            ignoreerrors: true
+        notify: sysctl flush ipv4 route table
+
+      - name: "3.2.1 | PATCH | Ensure IP forwarding is disabled | Disable IPv6 forwarding"
+        sysctl:
+            name: net.ipv6.conf.all.forwarding
+            value: '0'
+            state: present
+            reload: true
+            ignoreerrors: true
+        notify: sysctl flush ipv6 route table
+        when: rhel8cis_ipv6_required
+  when:
+      - not rhel8cis_is_router
+      - rhel8cis_rule_3_2_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - sysctl
+      - patch
+      - rule_3.2.1
+
+- name: "3.2.2 | PATCH | Ensure packet redirect sending is disabled"
+  sysctl:
+      name: '{{ item.name }}'
+      value: '{{ item.value }}'
+      sysctl_set: true
+      state: present
+      reload: true
+      ignoreerrors: true
+  notify: sysctl flush ipv4 route table
+  with_items:
+      - { name: net.ipv4.conf.all.send_redirects, value: 0 }
+      - { name: net.ipv4.conf.default.send_redirects, value: 0 }
+  when:
+      - not rhel8cis_is_router
+      - rhel8cis_rule_3_2_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.2.2
+
+---
+
+- name: "3.3.1 | PATCH | Ensure source routed packets are not accepted"
+  block:
+      - name: "3.3.1 | PATCH | Ensure source routed packets are not accepted | Set routed packets IPv4"
+        sysctl:
+            name: '{{ item.name }}'
+            value: '{{ item.value }}'
+            sysctl_set: true
+            state: present
+            reload: true
+            ignoreerrors: true
+        notify: sysctl flush ipv4 route table
+        with_items:
+            - { name: net.ipv4.conf.all.accept_source_route, value: 0 }
+            - { name: net.ipv4.conf.default.accept_source_route, value: 0 }
+
+      - name: "3.3.1 | PATCH | Ensure source routed packets are not accepted | Set routed packets IPv6"
+        sysctl:
+            name: '{{ item.name }}'
+            value: '{{ item.value }}'
+            sysctl_set: true
+            reload: true
+            ignoreerrors: true
+        notify: sysctl flush ipv6 route table
+        with_items:
+            - { name: net.ipv6.conf.all.accept_source_route, value: 0}
+            - { name: net.ipv6.conf.default.accept_source_route, value: 0 }
+        when: rhel8cis_ipv6_required
+  when:
+      - rhel8cis_rule_3_3_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.1
+
+- name: "3.3.2 | PATCH | Ensure ICMP redirects are not accepted"
+  block:
+      - name: "3.3.2 | PATCH | Ensure ICMP redirects are not accepted | Set ICMP redirects IPv4"
+        sysctl:
+            name: '{{ item.name }}'
+            value: '{{ item.value }}'
+            sysctl_set: true
+            state: present
+            reload: true
+            ignoreerrors: true
+        notify: sysctl flush ipv4 route table
+        with_items:
+            - { name: net.ipv4.conf.all.accept_redirects, value: 0 }
+            - { name: net.ipv4.conf.default.accept_redirects, value: 0 }
+
+      - name: "3.3.2 | PATCH | Ensure ICMP redirects are not accepted | Set ICMP redirects IPv6"
+        sysctl:
+            name: '{{ item.name }}'
+            value: '{{ item.value }}'
+            sysctl_set: true
+            state: present
+            reload: true
+            ignoreerrors: true
+        notify: sysctl flush ipv6 route table
+        with_items:
+            - { name: net.ipv6.conf.all.accept_redirects, value: 0 }
+            - { name: net.ipv6.conf.default.accept_redirects, value: 0 }
+        when: rhel8cis_ipv6_required
+  when:
+      - rhel8cis_rule_3_3_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.2
+
+- name: "3.3.3 | PATCH | Ensure secure ICMP redirects are not accepted"
+  sysctl:
+      name: '{{ item.name }}'
+      value: '{{ item.value }}'
+      sysctl_set: true
+      state: present
+      reload: true
+      ignoreerrors: true
+  notify: sysctl flush ipv4 route table
+  with_items:
+      - { name: net.ipv4.conf.all.secure_redirects, value: 0 }
+      - { name: net.ipv4.conf.default.secure_redirects, value: 0 }
+  when:
+      - rhel8cis_rule_3_3_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.3
+
+- name: "3.3.4 | PATCH | Ensure suspicious packets are logged"
+  sysctl:
+      name: '{{ item.name }}'
+      value: '{{ item.value }}'
+      sysctl_set: true
+      state: present
+      reload: true
+      ignoreerrors: true
+  notify: sysctl flush ipv4 route table
+  with_items:
+      - { name: net.ipv4.conf.all.log_martians, value: 1 }
+      - { name: net.ipv4.conf.default.log_martians, value: 1 }
+  when:
+      - rhel8cis_rule_3_3_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.4
+
+- name: "3.3.5 | PATCH | Ensure broadcast ICMP requests are ignored"
+  sysctl:
+      name: net.ipv4.icmp_echo_ignore_broadcasts
+      value: '1'
+      state: present
+      reload: true
+      ignoreerrors: true
+  notify: sysctl flush ipv4 route table
+  when:
+      - rhel8cis_rule_3_3_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.5
+
+- name: "3.3.6 | PATCH | Ensure bogus ICMP responses are ignored"
+  sysctl:
+      name: net.ipv4.icmp_ignore_bogus_error_responses
+      value: '1'
+      state: present
+      reload: true
+      ignoreerrors: true
+  notify: sysctl flush ipv4 route table
+  when:
+      - rhel8cis_rule_3_3_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.6
+
+- name: "3.3.7 | PATCH | Ensure Reverse Path Filtering is enabled"
+  sysctl:
+      name: "{{ item }}"
+      value: '1'
+      sysctl_set: true
+      state: present
+      reload: true
+      ignoreerrors: true
+  loop:
+      - net.ipv4.conf.all.rp_filter
+      - net.ipv4.conf.default.rp_filter
+  notify: sysctl flush ipv4 route table
+  when:
+      - rhel8cis_rule_3_3_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.7
+
+- name: "3.3.8 | PATCH | Ensure TCP SYN Cookies is enabled"
+  sysctl:
+      name: net.ipv4.tcp_syncookies
+      value: '1'
+      state: present
+      reload: true
+      ignoreerrors: true
+  notify: sysctl flush ipv4 route table
+  when:
+      - rhel8cis_rule_3_3_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.8
+
+- name: "3.3.9 | PATCH | Ensure IPv6 router advertisements are not accepted"
+  sysctl:
+      name: '{{ item.name }}'
+      value: '{{ item.value }}'
+      sysctl_set: true
+      state: present
+      reload: true
+      ignoreerrors: true
+  notify: sysctl flush ipv6 route table
+  with_items:
+      - { name: net.ipv6.conf.all.accept_ra, value: 0 }
+      - { name: net.ipv6.conf.default.accept_ra, value: 0 }
+  when:
+      - rhel8cis_ipv6_required
+      - rhel8cis_rule_3_3_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sysctl
+      - rule_3.3.9
+
+---
+
+- name: "3.4.1.1 | PATCH | Ensure firewalld is installed"
+  package:
+      name:
+          - firewalld
+          - iptables
+      state: present
+  when:
+      - rhel8cis_rule_3_4_1_1
+      - rhel8cis_firewall == "firewalld"
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - firewalld
+      - rule_3.4.1.1
+
+- name: "3.4.1.2 | PATCH | Ensure iptables-services not installed with firewalld"
+  block:
+      - name: "3.4.1.2 | PATCH | Ensure iptables-services not installed with firewalld | Stop running services"
+        systemd:
+            name: "{{ item }}"
+            masked: true
+        with_items:
+            - iptables
+            - ip6tables
+        when: item in ansible_facts.packages
+
+      - name: "3.4.1.2 | PATCH | Ensure iptables-services not installed with firewalld | Remove IPTables"
+        package:
+            name: iptables-services
+            state: absent
+  when:
+      - rhel8cis_rule_3_4_1_2
+      - rhel8cis_firewall == "firewalld"
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - firewalld
+      - rule_3.4.1.2
+
+- name: "3.4.1.3 | PATCH | Ensure nftables either not installed or masked with firewalld"
+  systemd:
+      name: nftables
+      state: stopped
+      masked: true
+  when:
+      - rhel8cis_firewall == "firewalld"
+      - rhel8cis_rule_3_4_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - firewalld
+      - rule_3_4_1_3
+
+- name: "3.4.1.4 | PATCH | Ensure firewalld service is enabled and running"
+  systemd:
+      name: firewalld
+      state: started
+      enabled: true
+  when:
+      - rhel8cis_firewall == "firewalld"
+      - rhel8cis_rule_3_4_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - firewalld
+      - rule_3_4_1_4
+
+- name: "3.4.1.5 | PATCH | Ensure firewalld default zone is set"
+  block:
+      - name: "3.4.1.5 | AUDIT | Ensure firewalld default zone is set"
+        shell: "firewall-cmd --get-default-zone | grep {{ rhel8cis_default_zone }}"
+        changed_when: false
+        failed_when: ( firewalld_zone_set.rc not in [ 0, 1 ] )
+        register: firewalld_zone_set
+
+      - name: "3.4.1.5 | AUDIT | Ensure firewalld default zone is set"
+        command: firewall-cmd --set-default-zone="{{ rhel8cis_default_zone }}"
+        when:
+            - firewalld_zone_set.rc != 0
+  when:
+      - rhel8cis_firewall == "firewalld"
+      - rhel8cis_rule_3_4_1_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - firewalld
+      - rule_3.4.1.5
+
+- name: "3.4.1.6 | AUDIT | Ensure network interfaces are assigned to appropriate zone"
+  block:
+      - name: "3.4.1.6 | AUDIT | Ensure network interfaces are assigned to appropriate zone | Get list of interfaces and policies"
+        shell: "nmcli -t connection show | awk -F: '{ if($4){print $4} }' | while read INT; do firewall-cmd --get-active-zones | grep -B1 $INT; done"
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_3_4_1_6_interfacepolicy
+
+      - name: "3.4.1.6 | AUDIT | Ensure network interfaces are assigned to appropriate zone | Get list of interfaces and policies | Show the interface to policy"
+        debug:
+            msg:
+                - "Warning!! The items below are the policies tied to the interfaces, please correct as needed"
+                - "{{ rhel8cis_3_4_1_6_interfacepolicy.stdout_lines }}"
+
+      - name: "3.4.1.6 | AUDIT | Ensure network interfaces are assigned to appropriate zone | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+  vars:
+      warn_control_id: '3.4.1.6'
+  when:
+      - rhel8cis_firewall == "firewalld"
+      - rhel8cis_rule_3_4_1_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - audit
+      - rule_3.4.1.6
+
+- name: "3.4.1.7 | AUDIT | Ensure firewalld drops unnecessary services and ports"
+  block:
+      - name: "3.4.1.7 | AUDIT | Ensure firewalld drops unnecessary services and ports | Get list of services and ports"
+        shell: "firewall-cmd --get-active-zones | awk '!/:/ {print $1}' | while read ZN; do firewall-cmd --list-all --zone=$ZN; done"
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_3_4_1_7_servicesport
+
+      - name: "3.4.1.7 | AUDIT | Ensure firewalld drops unnecessary services and ports | Show services and ports"
+        debug:
+            msg:
+                - "The items below are the services and ports that are accepted, please correct as needed"
+                - "{{ rhel8cis_3_4_1_7_servicesport.stdout_lines }}"
+  when:
+      - rhel8cis_firewall == "firewalld"
+      - rhel8cis_rule_3_4_1_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - audit
+      - rule_3.4.1.7
+
+---
+
+- name: "3.4.2.1 | PATCH | Ensure nftables is installed"
+  package:
+      name: nftables
+      state: present
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.2.1
+
+# The control allows the service it be masked or not installed
+# We have chosen not installed
+- name: "3.4.2.2 | PATCH | Ensure firewalld is either not installed or masked with nftables"
+  package:
+      name: firewalld
+      state: absent
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.2.2
+
+- name: "3.4.2.3 | PATCH | Ensure iptables-services not installed with nftables"
+  block:
+      - name: "3.4.2.3 | PATCH | Ensure iptables-services not installed with nftables | Stop services"
+        systemd:
+            name: "{{ item }}"
+            enabled: false
+            masked: true
+        ignore_errors: true  # noqa ignore-errors
+        with_items:
+            - iptables
+            - ip6tables
+
+      - name: "3.4.2.3 | PATCH | Ensure iptables-services not installed with nftables | Remove IPTables"
+        package:
+            name: iptables-service
+            state: absent
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.2.3
+
+- name: "3.4.2.4 | PATCH | Ensure iptables are flushed with nftables"
+  block:
+      - name: "3.4.2.4 | PATCH | Ensure iptables are flushed with nftables | IPv4"
+        command: iptables -F
+
+      - name: "3.4.2.4 | PATCH | Ensure iptables are flushed with nftables | IPv6"
+        command: ip6tables -F
+        when: rhel8cis_ipv6_required
+  when:
+      - rhel8cis_rule_3_4_2_4
+      - rhel8cis_firewall != "firewalld"
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - nftables
+      - rule_3.4.2.4
+
+- name: "3.4.2.5 | AUDIT | Ensure an nftables table exists"
+  block:
+      - name: "3.4.2.5 | AUDIT | Ensure a table exists | Check for tables"
+        command: nft list tables
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_5_nft_tables
+
+      - name: "3.4.2.5 | AUDIT | Ensure an nftables table exists | Show existing tables"
+        debug:
+            msg:
+                - "Below are the current nft tables, please review"
+                - "{{ rhel8cis_3_4_2_5_nft_tables.stdout_lines }}"
+        when: rhel8cis_3_4_2_5_nft_tables.stdout | length > 0
+
+      - name: "3.4.2.5 | AUDIT | Ensure an nftables table exists | Alert on no tables"
+        debug:
+            msg:
+                - "Warning!! You currently have no nft tables, please review your setup"
+                - 'Use the command "nft create table inet <table name>" to create a new table'
+        when:
+            - rhel8cis_3_4_2_5_nft_tables.stdout | length == 0
+            - not rhel8cis_nft_tables_autonewtable
+
+      - name: "3.4.2.5 | AUDIT | Ensure an nftables table exists| Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '3.4.2.5'
+        when:
+            - rhel8cis_3_4_2_5_nft_tables.stdout | length == 0
+            - not rhel8cis_nft_tables_autonewtable
+
+      - name: "3.4.2.5 | PATCH | Ensure a table exists | Create table if needed"
+        command: nft create table inet "{{ rhel8cis_nft_tables_tablename }}"
+        failed_when: false
+        when: rhel8cis_nft_tables_autonewtable
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.2.5
+
+- name: "3.4.2.6 | PATCH | Ensure nftables base chains exist"
+  block:
+      - name: "3.4.2.6 | AUDIT | Ensure nftables base chains exist | Get current chains for INPUT"
+        shell: nft list ruleset | grep 'hook input'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_6_input_chains
+
+      - name: "3.4.2.6 | AUDIT | Ensure nftables base chains exist | Get current chains for FORWARD"
+        shell: nft list ruleset | grep 'hook forward'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_6_forward_chains
+
+      - name: "3.4.2.6 | AUDIT | Ensure nftables base chains exist | Get current chains for OUTPUT"
+        shell: nft list ruleset | grep 'hook output'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_6_output_chains
+
+      - name: "3.4.2.6 | AUDIT | Ensure nftables base chains exist | Display chains for review"
+        debug:
+            msg:
+                - "Below are the current INPUT chains"
+                - "{{ rhel8cis_3_4_2_6_input_chains.stdout_lines }}"
+                - "Below are the current FORWARD chains"
+                - "{{ rhel8cis_3_4_2_6_forward_chains.stdout_lines }}"
+                - "Below are teh current OUTPUT chains"
+                - "{{ rhel8cis_3_4_2_6_output_chains.stdout_lines }}"
+        when: not rhel8cis_nft_tables_autochaincreate
+
+      - name: "3.4.2.6 | PATCH | Ensure nftables base chains exist | Create chains if needed"
+        shell: "{{ item }}"
+        failed_when: false
+        with_items:
+            - nft create chain inet "{{ rhel8cis_nft_tables_tablename }}" input { type filter hook input priority 0 \; }
+            - nft create chain inet "{{ rhel8cis_nft_tables_tablename }}" forward { type filter hook forward priority 0 \; }
+            - nft create chain inet "{{ rhel8cis_nft_tables_tablename }}" output { type filter hook output priority 0 \; }
+        when: rhel8cis_nft_tables_autochaincreate
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automate
+      - patch
+      - nftables
+      - rule_3.4.2.6
+
+- name: "3.4.2.7 | PATCH | Ensure nftables loopback traffic is configured"
+  block:
+      - name: "3.4.2.7 | AUDIT | Ensure nftables loopback traffic is configured | Gather iif lo accept existence"
+        shell: nft list ruleset | awk '/hook input/,/}/' | grep 'iif "lo" accept'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_7_iiflo
+
+      - name: "3.4.2.7 | AUDIT | Ensure nftables loopback traffic is configured | Gather ip saddr existence"
+        shell: nft list ruleset | awk '/hook input/,/}/' | grep 'ip saddr'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_7_ipsaddr
+
+      - name: "3.4.2.7 | AUDIT | Ensure nftables loopback traffic is configured | Gather ip6 saddr existence"
+        shell: nft list ruleset | awk '/hook input/,/}/' | grep 'ip6 saddr'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_7_ip6saddr
+
+      - name: "3.4.2.7 | PATCH | Ensure nftables loopback traffic is configured | Set iif lo accept rule"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" input iif lo accept
+        when: '"iif \"lo\" accept" not in rhel8cis_3_4_2_7_iiflo.stdout'
+
+      - name: "3.4.2.7 | PATCH | Ensure nftables loopback traffic is configured | Set ip sddr rule"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" input ip saddr 127.0.0.0/8 counter drop
+        when: '"ip saddr 127.0.0.0/8 counter packets 0 bytes 0 drop" not in rhel8cis_3_4_2_7_ipsaddr.stdout'
+
+      - name: "3.4.2.7 | PATCH | Ensure nftables loopback traffic is configured | Set ip6 saddr rule"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" input ip6 saddr ::1 counter drop
+        when: '"ip6 saddr ::1 counter packets 0 bytes 0 drop" not in rhel8cis_3_4_2_7_ip6saddr.stdout'
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.2.7
+
+- name: "3.4.2.8 | PATCH | Ensure nftables outbound and established connections are configured"
+  block:
+      - name: "3.4.2.8 | AUDIT | Ensure nftables outbound and established connections are configured | Gather incoming connection rules"
+        shell: nft list ruleset | awk '/hook input/,/}/' | grep -E 'ip protocol (tcp|udp|icmp) ct state'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_8_inconnectionrule
+
+      - name: "3.4.2.8| AUDIT | Ensure nftables outbound and established connections are configured | Gather outbound connection rules"
+        shell: nft list ruleset | awk '/hook output/,/}/' | grep -E 'ip protocol (tcp|udp|icmp) ct state'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_2_8_outconnectionrule
+
+      - name: "3.4.2.8| PATCH | Ensure nftables outbound and established connections are configured | Add input tcp established accept policy"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" input ip protocol tcp ct state established accept
+        when: '"ip protocol tcp ct state established accept" not in rhel8cis_3_4_2_8_inconnectionrule.stdout'
+
+      - name: "3.4.2.8 | PATCH | Ensure nftables outbound and established connections are configured | Add input udp established accept policy"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" input ip protocol udp ct state established accept
+        when: '"ip protocol udp ct state established accept" not in rhel8cis_3_4_2_8_inconnectionrule.stdout'
+
+      - name: "3.4.2.8 | PATCH | Ensure nftables outbound and established connections are configured | Add input icmp established accept policy"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" input ip protocol icmp ct state established accept
+        when: '"ip protocol icmp ct state established accept" not in rhel8cis_3_4_2_8_inconnectionrule.stdout'
+
+      - name: "3.4.2.8 | PATCH | Ensure nftables outbound and established connections are configured | Add output tcp new, related, established accept policy"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" output ip protocol tcp ct state new,related,established accept
+        when: '"ip protocol tcp ct state established,related,new accept" not in rhel8cis_3_4_2_8_outconnectionrule.stdout'
+
+      - name: "3.4.2.8 | PATCH | Ensure nftables outbound and established connections are configured | Add output udp new, related, established accept policy"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" output ip protocol udp ct state new,related,established accept
+        when: '"ip protocol udp ct state established,related,new accept" not in rhel8cis_3_4_2_8_outconnectionrule.stdout'
+
+      - name: "3.4.2.8 | PATCH | Ensure nftables outbound and established connections are configured | Add output icmp new, related, established accept policy"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" output ip protocol icmp ct state new,related,established accept
+        when: '"ip protocol icmp ct state established,related,new accept" not in rhel8cis_3_4_2_8_outconnectionrule.stdout'
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.3.8
+
+- name: "3.4.2.9 | PATCH | Ensure nftables default deny firewall policy"
+  block:
+      - name: "3.4.2.9 | AUDIT | Ensure nftables default deny firewall policy | Check for hook input deny policy"
+        shell: nft list table inet "{{ rhel8cis_nft_tables_tablename }}" | grep 'hook input'
+        failed_when: false
+        changed_when: false
+        register: rhel8cis_3_4_2_9_inputpolicy
+
+      - name: "3.4.2.9 | AUDIT | Ensure nftables default deny firewall policy | Check for hook forward deny policy"
+        shell: nft list table inet "{{ rhel8cis_nft_tables_tablename }}" | grep 'hook forward'
+        failed_when: false
+        changed_when: false
+        register: rhel8cis_3_4_2_9_forwardpolicy
+
+      - name: "3.4.2.9 | AUDIT | Ensure nftables default deny firewall policy | Check for hook output deny policy"
+        shell: nft list table inet "{{ rhel8cis_nft_tables_tablename }}" | grep 'hook output'
+        failed_when: false
+        changed_when: false
+        register: rhel8cis_3_4_2_9_outputpolicy
+
+      - name: "3.4.2.9 | AUDIT | Ensure nftables default deny firewall policy | Check for SSH allow"
+        shell: nft list table inet "{{ rhel8cis_nft_tables_tablename }}" | grep 'ssh'
+        failed_when: false
+        changed_when: false
+        register: rhel8cis_3_4_2_9_sshallowcheck
+
+      - name: "3.4.2.9 | PATCH | Ensure nftables default deny firewall policy | Enable SSH traffic"
+        command: nft add rule inet "{{ rhel8cis_nft_tables_tablename }}" input tcp dport ssh accept
+        when: '"tcp dport ssh accept" not in rhel8cis_3_4_2_9_sshallowcheck.stdout'
+
+      - name: "3.4.2.9 | PATCH | Ensure nftables default deny firewall policy | Set hook input deny policy"
+        command: nft chain inet "{{ rhel8cis_nft_tables_tablename }}" input { policy drop \; }
+        when: '"type filter hook input priority 0; policy drop;" not in rhel8cis_3_4_2_9_inputpolicy.stdout'
+
+      - name: "3.4.2.9 | PATCH | Ensure nftables default deny firewall policy | Create hook forward deny policy"
+        command: nft chain inet "{{ rhel8cis_nft_tables_tablename }}" forward { policy drop \; }
+        when: '"type filter hook forward priority 0; policy drop;" not in rhel8cis_3_4_2_9_forwardpolicy.stdout'
+
+      - name: "3.4.2.9 | PATCH | Ensure nftables default deny firewall policy | Create hook output deny policy"
+        command: nft chain inet "{{ rhel8cis_nft_tables_tablename }}" output { policy drop \; }
+        when: '"type filter hook output priority 0; policy drop;" not in rhel8cis_3_4_2_9_outputpolicy.stdout'
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.2.9
+
+- name: "3.4.2.10 | PATCH | Ensure nftables service is enabled"
+  service:
+      name: nftables
+      enabled: true
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_10
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.3.10
+
+- name: "3.4.2.11 | PATCH | Ensure nftables rules are permanent"
+  lineinfile:
+      path: /etc/sysconfig/nftables.conf
+      state: present
+      insertafter: EOF
+      line: include "/etc/nftables/inet-{{ rhel8cis_nft_tables_tablename }}"
+  when:
+      - rhel8cis_firewall == "nftables"
+      - rhel8cis_rule_3_4_2_11
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - nftables
+      - rule_3.4.2.11
+
+---
+
+- name: "3.4.3.1.1 | PATCH | Ensure iptables packages are installed"
+  package:
+      name:
+          - iptables
+          - iptables-services
+      state: present
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - iptables
+      - rule_3.4.3.1.1
+
+- name: "3.4.3.1.2 | PATCH | Ensure nftables is not installed with iptables"
+  package:
+      name: nftables
+      state: absent
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_1_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - iptables
+      - rule_3.4.3.1.2
+
+# The control allows the service it be masked or not installed
+# We have chosen not installed
+- name: "3.4.3.1.3 | PATCH | Ensure firewalld is either not installed or masked with iptables"
+  package:
+      name: firewalld
+      state: absent
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - iptables
+      - rule_3.4.3.1.3
+
+---
+
+- name: "3.4.3.2.1 | PATCH | Ensure iptables loopback traffic is configured"
+  block:
+      - name: "3.4.3.2.1 | PATCH | Ensure iptables loopback traffic is configured | INPUT Loopback ACCEPT"
+        iptables:
+            action: append
+            chain: INPUT
+            in_interface: lo
+            jump: ACCEPT
+
+      - name: "3.4.3.2.1 | PATCH | Ensure iptables loopback traffic is configured | OUTPUT Loopback ACCEPT"
+        iptables:
+            action: append
+            chain: OUTPUT
+            out_interface: lo
+            jump: ACCEPT
+
+      - name: "3.4.3.2.1 | PATCH | Ensure iptables loopback traffic is configured | INPUT Loopback 127.0.0.0/8"
+        iptables:
+            action: append
+            chain: INPUT
+            source: 127.0.0.0/8
+            jump: DROP
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_2_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - iptables
+      - rule_3.4.3.2.1
+
+- name: "3.4.3.2.2 | PATCH | Ensure iptables outbound and established connections are configured"
+  iptables:
+      action: append
+      chain: '{{ item.chain }}'
+      protocol: '{{ item.protocol }}'
+      match: state
+      ctstate: '{{ item.ctstate }}'
+      jump: ACCEPT
+  with_items:
+      - { chain: OUTPUT, protocol: tcp, ctstate: 'NEW,ESTABLISHED' }
+      - { chain: OUTPUT, protocol: udp, ctstate: 'NEW,ESTABLISHED' }
+      - { chain: OUTPUT, protocol: icmp, ctstate: 'NEW,ESTABLISHED' }
+      - { chain: INPUT, protocol: tcp, ctstate: ESTABLISHED }
+      - { chain: INPUT, protocol: udp, ctstate: ESTABLISHED }
+      - { chain: INPUT, protocol: icmp, ctstate: ESTABLISHED }
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_2_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - iptables
+      - rule_3.4.3.2.2
+
+- name: "3.4.3.2.3 | PATCH | Ensure iptables rules exist for all open ports"
+  block:
+      - name: "3.4.3.2.3 | AUDIT | Ensure iptables rules exist for all open ports | Get list of TCP open ports"
+        shell: netstat -ant |grep "tcp.*LISTEN" | awk '{ print $4 }'| sed 's/.*://'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_3_2_3_otcp
+
+      - name: "3.4.3.2.3 | AUDIT | Ensure iptables rules exist for all open ports | Get the list of udp open ports"
+        shell: netstat -ant |grep "udp.*LISTEN" | awk '{ print $4 }'| sed 's/.*://'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_3_2_3_oudp
+
+      - name: "3.4.3.2.3 | PATCH | Ensure iptables rules exist for all open ports | Adjust open tcp ports"
+        iptables:
+            action: append
+            chain: INPUT
+            protocol: tcp
+            destination_port: "{{ item }}"
+            match: state
+            ctstate: NEW
+            jump: ACCEPT
+        with_items:
+            - "{{ rhel8cis_3_4_3_2_3_otcp.stdout_lines }}"
+        when: rhel8cis_3_4_3_2_3_otcp.stdout is defined
+
+      - name: "3.4.3.2.3 | PATCH | Ensure iptables rules exist for all open ports | Adjust open udp ports"
+        iptables:
+            action: append
+            chain: INPUT
+            protocol: udp
+            destination_port: "{{ item }}"
+            match: state
+            ctstate: NEW
+            jump: ACCEPT
+        with_items:
+            - "{{ rhel8cis_3_4_3_2_3_oudp.stdout_lines }}"
+        when: rhel8cis_3_4_3_2_3_otcp.stdout is defined
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_2_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - iptables
+      - rule_3.4.3.2.3
+
+- name: "3.4.3.2.4 | PATCH | Ensure iptables default deny firewall policy"
+  block:
+      - name: "3.4.3.2.4 | PATCH |  Ensure iptables default deny firewall policy | Configure ssh to be allowed"
+        iptables:
+            chain: INPUT
+            protocol: tcp
+            destination_port: "22"
+            jump: ACCEPT
+
+      - name: "3.4.3.2.4 | PATCH | Ensure iptables default deny firewall policy | Set drop items"
+        iptables:
+            policy: DROP
+            chain: "{{ item }}"
+        with_items:
+            - INPUT
+            - FORWARD
+            - OUTPUT
+  when:
+      - rhel8cis_rule_3_4_3_2_4
+      - rhel8cis_firewall == "iptables"
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - iptables
+      - rule_3.4.3.2.4
+
+- name: "3.4.3.2.5 | PATCH | Ensure iptables rules are saved"
+  iptables_state:
+      state: saved
+      path: /etc/sysconfig/iptables
+  when:
+      - rhel8cis_rule_3_4_3_2_5
+      - rhel8cis_firewall == "iptables"
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - iptables
+      - rule_3.4.3.2.5
+
+- name: "3.4.3.2.6 | PATCH | Ensure iptables service is enabled and active"
+  service:
+      name: iptables
+      enabled: true
+      state: started
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_2_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - iptables
+      - rule_3.4.3.2.6
+
+---
+
+- name: "3.4.3.3.1 | PATCH |  Ensure ip6tables loopback traffic is configured"
+  block:
+      - name: "3.4.3.3.1 | PATCH |  Ensure ip6tables loopback traffic is configured | INPUT Loopback ACCEPT"
+        iptables:
+            action: append
+            chain: INPUT
+            in_interface: lo
+            jump: ACCEPT
+            ip_version: ipv6
+
+      - name: "3.4.3.3.1 | PATCH |  Ensure ip6tables loopback traffic is configured | OUTPUT Loopback ACCEPT"
+        iptables:
+            action: append
+            chain: OUTPUT
+            out_interface: lo
+            jump: ACCEPT
+            ip_version: ipv6
+
+      - name: "3.4.3.3.1 | PATCH | Ensure ip6tables loopback traffic is configured | INPUT Loopback 127.0.0.0/8"
+        iptables:
+            action: append
+            chain: INPUT
+            source: ::1
+            jump: DROP
+            ip_version: ipv6
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_3_1
+      - rhel8cis_ipv6_required
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ip6tables
+      - rule_3.4.3.3.1
+
+- name: "3.4.3.3.2 | PATCH | Ensure ip6tables outbound and established connections are configured"
+  iptables:
+      action: append
+      chain: '{{ item.chain }}'
+      protocol: '{{ item.protocol }}'
+      match: state
+      ctstate: '{{ item.ctstate }}'
+      jump: ACCEPT
+      ip_version: ipv6
+  with_items:
+      - { chain: OUTPUT, protocol: tcp, ctstate: 'NEW,ESTABLISHED' }
+      - { chain: OUTPUT, protocol: udp, ctstate: 'NEW,ESTABLISHED' }
+      - { chain: OUTPUT, protocol: icmp, ctstate: 'NEW,ESTABLISHED' }
+      - { chain: INPUT, protocol: tcp, ctstate: ESTABLISHED }
+      - { chain: INPUT, protocol: udp, ctstate: ESTABLISHED }
+      - { chain: INPUT, protocol: icmp, ctstate: ESTABLISHED }
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_3_2
+      - rhel8cis_ipv6_required
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - ip6tables
+      - rule_3.4.3.3.2
+
+- name: "3.4.3.3.3 | PATCH | Ensure ip6tables firewall rules exist for all open ports"
+  block:
+      - name: "3.4.3.3.3 | AUDIT | Ensure ip6tables firewall rules exist for all open ports | Get list of TCP6 open ports"
+        shell: netstat -ant |grep "tcp6.*LISTEN" | awk '{ print $4 }'| sed 's/.*://'
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_3_4_3_3_3_otcp
+
+      - name: "3.4.3.3.3 | PATCH |Ensure ip6tables firewall rules exist for all open ports| Adjust open tcp6 ports"
+        iptables:
+            action: append
+            chain: INPUT
+            protocol: tcp
+            destination_port: "{{ item }}"
+            match: state
+            ctstate: NEW
+            jump: ACCEPT
+            ip_version: ipv6
+        with_items:
+            - "{{ rhel8cis_3_4_3_3_3_otcp.stdout_lines }}"
+        when: rhel8cis_3_4_3_3_3_otcp.stdout is defined
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_3_3
+      - rhel8cis_ipv6_required
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ip6tables
+      - rule_3.4.3.3.3
+
+- name: "3.4.3.3.4 | PATCH | Ensure ip6tables default deny firewall policy"
+  block:
+      - name: "3.4.3.3.4 | PATCH | Ensure ip6tables default deny firewall policy | Configure ssh to be allowed"
+        iptables:
+            chain: INPUT
+            protocol: tcp
+            destination_port: "22"
+            jump: ACCEPT
+            ip_version: ipv6
+
+      - name: "3.4.3.3.4 | PATCH | Ensure ip6tables default deny firewall policy | Set drop items"
+        iptables:
+            policy: DROP
+            chain: "{{ item }}"
+            ip_version: ipv6
+        with_items:
+            - INPUT
+            - FORWARD
+            - OUTPUT
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_3_4
+      - rhel8cis_ipv6_required
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ip6tables
+      - rule_3.4.3.3.4
+
+- name: "3.4.3.3.5 | PATCH | Ensure ip6tables rules are saved"
+  iptables_state:
+      state: saved
+      path: /etc/sysconfig/ip6tables
+      ip_version: ipv6
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_ipv6_required
+      - rhel8cis_rule_3_4_3_3_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ip6tables
+      - rule_3.4.3.3.5
+
+- name: "3.4.3.3.6 | PATCH | Ensure ip6tables service is enabled and active"
+  service:
+      name: ip6tables
+      enabled: true
+      state: started
+  when:
+      - rhel8cis_firewall == "iptables"
+      - rhel8cis_rule_3_4_3_3_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ip6tables
+      - rule_3.4.3.3.6
+
+
+---
+
+- name: "4.1.1.1 | PATCH | Ensure auditd is installed"
+  block:
+      - name: "4.1.1.1 | PATCH | Ensure auditd is installed | Install auditd packages"
+        package:
+            name: audit
+            state: present
+        when: '"auditd" not in ansible_facts.packages'
+
+      - name: "4.1.1.1 | PATCH | Ensure auditd is installed | Install auditd-lib packages"
+        package:
+            name: audit-libs
+            state: present
+        when: '"auditd-lib" not in ansible_facts.packages'
+  when:
+      - rhel8cis_rule_4_1_1_1
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.1.1
+
+- name: "4.1.1.2 | PATCH | Ensure auditd service is enabled"
+  service:
+      name: auditd
+      state: started
+      enabled: true
+  when:
+      - rhel8cis_rule_4_1_1_2
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.1.2
+
+- name: "4.1.1.3 | PATCH | Ensure auditing for processes that start prior to auditd is enabled"
+  block:
+      - name: "4.1.1.3 | AUDIT | Ensure auditing for processes that start prior to auditd is enabled | Get GRUB_CMDLINE_LINUX"
+        shell: grep 'GRUB_CMDLINE_LINUX=' /etc/default/grub | sed 's/.$//'
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_4_1_1_3_grub_cmdline_linux
+
+      - name: "4.1.1.3 | PATCH | Ensure auditing for processes that start prior to auditd is enabled | Replace existing setting"
+        replace:
+            path: /etc/default/grub
+            regexp: 'audit=.'
+            replace: 'audit=1'
+        notify: rhel8cis_grub2cfg
+        when: "'audit=' in rhel8cis_4_1_1_3_grub_cmdline_linux.stdout"
+
+      - name: "4.1.1.3 | PATCH | Ensure auditing for processes that start prior to auditd is enabled | Add audit setting if missing"
+        lineinfile:
+            path: /etc/default/grub
+            regexp: '^GRUB_CMDLINE_LINUX='
+            line: '{{ rhel8cis_4_1_1_3_grub_cmdline_linux.stdout }} audit=1"'
+        notify: rhel8cis_grub2cfg
+        when: "'audit=' not in rhel8cis_4_1_1_3_grub_cmdline_linux.stdout"
+  when:
+      - rhel8cis_rule_4_1_1_3
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - grub
+      - rule_4.1.1.3
+
+- name: "4.1.1.4 | PATCH | Ensure audit_backlog_limit is sufficient"
+  block:
+      - name: "4.1.1.4 | AUDIT | Ensure audit_backlog_limit is sufficient | Get GRUB_CMDLINE_LINUX"
+        shell: grep 'GRUB_CMDLINE_LINUX=' /etc/default/grub | sed 's/.$//'
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_4_1_1_4_grub_cmdline_linux
+
+      - name: "4.1.1.4 | PATCH | Ensure audit_backlog_limit is sufficient | Replace existing setting"
+        replace:
+            path: /etc/default/grub
+            regexp: 'audit_backlog_limit=\d+'
+            replace: 'audit_backlog_limit={{ rhel8cis_audit_back_log_limit }}'
+        notify: rhel8cis_grub2cfg
+        when: "'audit_backlog_limit=' in rhel8cis_4_1_1_4_grub_cmdline_linux.stdout"
+
+      - name: "4.1.1.4 | PATCH | Ensure audit_backlog_limit is sufficient | Add audit_backlog_limit setting if missing"
+        lineinfile:
+            path: /etc/default/grub
+            regexp: '^GRUB_CMDLINE_LINUX='
+            line: '{{ rhel8cis_4_1_1_4_grub_cmdline_linux.stdout }} audit_backlog_limit={{ rhel8cis_audit_back_log_limit }}"'
+        notify: rhel8cis_grub2cfg
+        when: "'audit_backlog_limit=' not in rhel8cis_4_1_1_4_grub_cmdline_linux.stdout"
+  when:
+      - rhel8cis_rule_4_1_1_4
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - grub
+      - rule_4.1.1.4
+
+---
+
+- name: "4.1.2.1 | PATCH | Ensure audit log storage size is configured"
+  lineinfile:
+      path: /etc/audit/auditd.conf
+      regexp: "^max_log_file( |=)"
+      line: "max_log_file = {{ rhel8cis_max_log_file_size }}"
+  notify: restart auditd
+  when:
+      - rhel8cis_rule_4_1_2_1
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.2.1
+
+- name: "4.1.2.2 | PATCH | Ensure audit logs are not automatically deleted"
+  lineinfile:
+      path: /etc/audit/auditd.conf
+      regexp: "^max_log_file_action"
+      line: "max_log_file_action = {{ rhel8cis_auditd['max_log_file_action'] }}"
+  notify: restart auditd
+  when:
+      - rhel8cis_rule_4_1_2_2
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.2.2
+
+- name: "4.1.2.3 | PATCH | Ensure system is disabled when audit logs are full"
+  lineinfile:
+      path: /etc/audit/auditd.conf
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+  notify: restart auditd
+  with_items:
+      - { regexp: '^admin_space_left_action', line: 'admin_space_left_action = {{ rhel8cis_auditd.admin_space_left_action }}' }
+      - { regexp: '^action_mail_acct', line: 'action_mail_acct = {{ rhel8cis_auditd.action_mail_acct }}' }
+      - { regexp: '^space_left_action', line: 'space_left_action = {{ rhel8cis_auditd.space_left_action }}' }
+  when:
+      - rhel8cis_rule_4_1_2_3
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.2.3
+
+---
+
+- name: "4.1.3.1 | PATCH | Ensure changes to system administration scope (sudoers) is collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_1
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.1
+
+- name: "4.1.3.2 | PATCH | Ensure actions as another user are always logged"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_2
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.2
+
+- name: "4.1.3.3 | PATCH | Ensure events that modify the sudo log file are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_3
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.3
+
+- name: "4.1.3.4 | PATCH | Ensure events that modify date and time information are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_4
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.4
+
+- name: "4.1.3.5 | PATCH | Ensure events that modify the system's network environment are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_5
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.5
+
+- name: "4.1.3.6 | PATCH | Ensure use of privileged commands is collected"
+  block:
+      - name: "4.1.3.6 | PATCH | Ensure use of privileged commands is collected"
+        shell: for i in  $(df | grep '^/dev' | awk '{ print $NF }'); do find $i -xdev -type f -perm -4000 -o -type f -perm -2000 2>/dev/null; done
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: priv_procs
+
+      - name: "4.1.3.6 | PATCH | Ensure use of privileged commands is collected"
+        set_fact:
+            update_audit_template: true
+        notify: update auditd
+  when:
+      - rhel8cis_rule_4_1_3_6
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.6
+
+- name: "4.1.3.7 | PATCH | Ensure unsuccessful unauthorized file access attempts are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_7
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3_7
+
+- name: "4.1.3.8 | PATCH | Ensure events that modify user/group information are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_8
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.8
+
+- name: "4.1.3.9 | PATCH | Ensure discretionary access control permission modification events are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_9
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.9
+
+- name: "4.1.3.10 | PATCH | Ensure successful file system mounts are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_10
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.10
+
+- name: "4.1.3.11 | PATCH | Ensure session initiation information is collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_11
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.11
+
+- name: "4.1.3.12 | PATCH | Ensure login and logout events are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_12
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.12
+
+- name: "4.1.3.13 | PATCH | Ensure file deletion events by users are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_13
+  tags:
+      - level2-server
+      - level2-workstation
+      - auditd
+      - patch
+      - rule_4.1.3.13
+
+- name: "4.1.3.14 | PATCH | Ensure events that modify the system's Mandatory Access Controls are collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_14
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.14
+
+- name: "4.1.3.15 | PATCH | Ensure successful and unsuccessful attempts to use the chcon command are recorded"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_15
+  tags:
+      - level2-server
+      - level2- workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.15
+
+- name: "4.1.3.16 | PATCH | Ensure successful and unsuccessful attempts to use the setfacl command are recorded"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_16
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.16
+
+- name: "4.1.3.17 | PATCH | Ensure successful and unsuccessful attempts to use the chacl command are recorded"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_17
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.17
+
+- name: "4.1.3.18 | PATCH | Ensure successful and unsuccessful attempts to use the usermod command are recorded"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_18
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.18
+
+- name: "4.1.3.19 | PATCH | Ensure kernel module loading and unloading is collected"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_19
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.3.19
+
+- name: "4.1.3.20 | PATCH | Ensure the audit configuration is immutable"
+  set_fact:
+      update_audit_template: true
+  when:
+      - rhel8cis_rule_4_1_3_20
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - auditd
+      - rule_4.1.20
+
+- name: "4.1.3.21 | AUDIT | Ensure the running and on disk configuration is the same"
+  debug:
+      msg:
+          - "Please run augenrules --load if you suspect there is a configuration that is not active"
+  when:
+      - rhel8cis_rule_4_1_3_21
+  tags:
+      - level2-server
+      - level2-workstation
+      - manual
+      - patch
+      - auditd
+      - rule_4.1.3.21
+
+- name: Auditd | 4.1.3 | Auditd controls updated
+  debug:
+      msg: "Auditd Controls handled in POST using template - updating /etc/auditd/rules.d/99_auditd.rules"
+  changed_when: false
+  when:
+      - update_audit_template
+
+---
+
+- name: "4.2.1.1 | PATCH | Ensure rsyslog installed"
+  package:
+      name: rsyslog
+      state: present
+  when:
+      - "'rsyslog' not in ansible_facts.packages"
+      - rhel8cis_rule_4_2_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rsyslog
+      - rule_4.2.1.1
+
+- name: "4.2.1.2 | PATCH | Ensure rsyslog Service is enabled"
+  service:
+      name: rsyslog
+      enabled: true
+  when:
+      - rhel8cis_rule_4_2_1_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rsyslog
+      - rule_4.2.1.2
+
+# This is counter to control 4.2.1.5??
+- name: "4.2.1.3 | PATCH | Ensure journald is configured to send logs to rsyslog"
+  lineinfile:
+      path: /etc/systemd/journald.conf
+      regexp: "^#ForwardToSyslog=|^ForwardToSyslog="
+      line: ForwardToSyslog=yes
+  when:
+      - rhel8cis_rule_4_2_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - rule_4.2.1.3
+
+- name: "4.2.1.4 | PATCH | Ensure rsyslog default file permissions configured"
+  lineinfile:
+      path: /etc/rsyslog.conf
+      regexp: '^\$FileCreateMode'
+      line: '$FileCreateMode 0640'
+  notify: restart rsyslog
+  when:
+      - rhel8cis_rule_4_2_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rsyslog
+      - rule_4.2.1.4
+
+- name: "4.2.1.5 | PATCH | Ensure logging is configured"
+  block:
+      - name: "4.2.1.5 | AUDIT | Ensure logging is configured | rsyslog current config message out"
+        command: cat /etc/rsyslog.conf
+        become: true
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel_08_4_2_1_5_audit
+
+      - name: "4.2.1.5 | AUDIT | Ensure logging is configured | rsyslog current config message out"
+        debug:
+            msg:
+                - "These are the current logging configurations for rsyslog, please review:"
+                - "{{ rhel_08_4_2_1_5_audit.stdout_lines }}"
+
+      - name: "4.2.1.5 | PATCH | Ensure logging is configured | mail.* log setting"
+        blockinfile:
+            path: /etc/rsyslog.conf
+            state: present
+            marker: "# {mark} MAIL LOG SETTINGS (ANSIBLE MANAGED)"
+            block: |
+              # mail logging additions to meet CIS standards
+              mail.*                                                  -/var/log/mail
+              mail.info                                               -/var/log/mail.info
+              mail.warning                                            -/var/log/mail.warning
+              mail.err                                                /var/log/mail.err
+            insertafter: '# Log all the mail messages in one place.'
+        notify: restart rsyslog
+        when: rhel8cis_rsyslog_ansiblemanaged
+
+      - name: "4.2.1.5 | PATCH | Ensure logging is configured | news.crit log setting"
+        blockinfile:
+            path: /etc/rsyslog.conf
+            state: present
+            marker: "# {mark} NEWS LOG SETTINGS (ANSIBLE MANAGED)"
+            block: |
+              # news logging additions to meet CIS standards
+              news.crit                                               -/var/log/news/news.crit
+              news.notice                                             -/var/log/news/news.crit
+            insertafter: '# Save news errors of level crit and higher in a special file.'
+        notify: restart rsyslog
+        when: rhel8cis_rsyslog_ansiblemanaged
+
+      - name: "4.2.1.5 | PATCH | Ensure logging is configured | Misc. log setting"
+        blockinfile:
+            path: /etc/rsyslog.conf
+            state: present
+            marker: "# {mark} MISC. LOG SETTINGS (ANSIBLE MANAGED)"
+            block: |
+              # misc. logging additions to meet CIS standards
+              *.=warning;*.=err                                        -/var/log/warn
+              *.crit                                                   /var/log/warn
+              *.*;mail.none;news.none                                  /var/log/messages
+            insertafter: '#### RULES ####'
+        notify: restart rsyslog
+        when: rhel8cis_rsyslog_ansiblemanaged
+
+      - name: "4.2.1.5 | PATCH | Ensure logging is configured | Local log settings"
+        blockinfile:
+            path: /etc/rsyslog.conf
+            state: present
+            marker: "#{mark} LOCAL LOG SETTINGS (ANSIBLE MANAGED)"
+            block: |
+              # local log settings to meet CIS standards
+              local0,local1.*                                          -/var/log/localmessages
+              local2,local3.*                                          -/var/log/localmessages
+              local4,local5.*                                          -/var/log/localmessages
+              local6,local7.*                                          -/var/log/localmessages
+              *.emrg                                                    :omusrmsg:*
+            insertafter: '#### RULES ####'
+        notify: restart rsyslog
+
+      - name: "4.2.1.5 | PATCH | Ensure logging is configured | Auth Settings"
+        blockinfile:
+            path: /etc/rsyslog.conf
+            state: present
+            marker: "#{mark} Auth SETTINGS (ANSIBLE MANAGED)"
+            block: |
+              # Private settings to meet CIS standards
+              auth,authpriv.*                                          -/var/log/secure
+            insertafter: '#### RULES ####'
+        notify: restart rsyslog
+
+      - name: "4.2.1.5 | PATCH | Ensure logging is configured | Cron Settings"
+        blockinfile:
+            path: /etc/rsyslog.conf
+            state: present
+            marker: "#{mark} Cron SETTINGS (ANSIBLE MANAGED)"
+            block: |
+              # Cron settings to meet CIS standards
+              cron.*                                                   /var/log/cron
+            insertafter: '#### RULES ####'
+        notify: restart rsyslog
+  when:
+      - rhel8cis_rule_4_2_1_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - rsyslog
+      - rule_4.2.1.5
+
+- name: "4.2.1.6 | PATCH | Ensure rsyslog is configured to send logs to a remote log host"
+  blockinfile:
+      path: /etc/rsyslog.conf
+      state: present
+      block: |
+        # remote host is: name/ip:port, e.g. 192.168.0.1:514, port optional
+        *.* @@{{ rhel8cis_remote_log_server }}
+      insertafter: EOF
+  register: result
+  failed_when:
+      - result is failed
+      - result.rc != 257
+  notify: restart rsyslog
+  when:
+      - rhel8cis_rule_4_2_1_6
+      - rhel8cis_remote_log_server is defined
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - rsyslog
+      - rule_4.2.1.6
+
+- name: "4.2.1.7 | PATCH | Ensure rsyslog is not configured to recieve logs from a remote client"
+  block:
+      - name: "4.2.1.7 | PATCH | Ensure rsyslog is not configured to recieve logs from a remote client. | When not log host"
+        replace:
+            path: /etc/rsyslog.conf
+            regexp: '({{ item }})'
+            replace: '#\1'
+        notify: restart rsyslog
+        with_items:
+            - '^(\$ModLoad imtcp)'
+            - '^(\$InputTCPServerRun)'
+            - '^(module\(load="imtcp"\))'
+            - '^(input\(type="imtcp")'
+        when: not rhel8cis_system_is_log_server
+
+      - name: "4.2.1.7 | PATCH | Ensure rsyslog is not configured to recieve logs from a remote clients. | When log host"
+        replace:
+            path: /etc/rsyslog.conf
+            regexp: '^#(.*{{ item }}.*)'
+            replace: '\1'
+        notify: restart rsyslog
+        with_items:
+            - 'ModLoad imtcp'
+            - 'InputTCPServerRun'
+            - 'module\(load="imtcp"\)'
+            - 'input\(type="imtcp"'
+        when: rhel8cis_system_is_log_server
+  when:
+      - rhel8cis_rule_4_2_1_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rsyslog
+      - rule_4.2.1.7
+
+---
+
+- name: "4.2.2.1.1 | PATCH | Ensure systemd-journal-remote is installed"
+  package:
+      name: systemd-journal-remote
+      state: present
+  when:
+      - rhel8cis_rule_4_2_2_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - journald
+      - rule_4.2.2.1.1
+
+- name: "4.2.2.1.2 | PATCH | Ensure systemd-journal-remote is configured"
+  lineinfile:
+      path: /etc/systemd/journal-upload.conf
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+  notify: restart systemd_journal_upload
+  with_items:
+      - { regexp: 'URL=', line: 'URL={{ rhel8cis_journal_upload_url }}'}
+      - { regexp: 'ServerKeyFile=', line: 'ServerKeyFile={{ rhel8cis_journal_upload_serverkeyfile }}'}
+      - { regexp: 'ServerCertificateFile=', line: 'ServerCertificateFile={{ rhel8cis_journal_servercertificatefile }}'}
+      - { regexp: 'TrustedCertificateFile=', line: 'TrustedCertificateFile={{ rhel8cis_journal_trustedcertificatefile }}'}
+  when:
+      - rhel8cis_rule_4_2_2_1_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - journald
+      - rule_4.2.2.1.2
+
+- name: "4.2.2.1.3 | PATCH | Ensure systemd-journal-remote is enabled"
+  systemd:
+      name: systemd-journal-upload
+      state: started
+      enabled: true
+  when:
+      - rhel8cis_system_is_log_server
+      - rhel8cis_rule_4_2_2_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - journald
+      - rule_4.2.2.1.3
+
+- name: "4.2.2.1.4 | PATCH | Ensure journald is not configured to recieve logs from a remote client"
+  systemd:
+      name: systemd-journal-remote.socket
+      state: stopped
+      enabled: false
+      masked: true
+  when:
+      - not rhel8cis_system_is_log_server
+      - rhel8cis_rule_4_2_2_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - journald
+      - rule_4.2.2.1.4
+
+- name: "4.2.2.2 | PATCH | Ensure journald service is enabled"
+  block:
+      - name: "4.2.2.2 | PATCH | Ensure journald service is enabled | Enable service"
+        systemd:
+            name: systemd-journald
+            state: started
+            enabled: true
+
+      - name: "4.2.2.2 | AUDIT | Ensure journald service is enabled | Capture status"
+        shell: systemctl is-enabled systemd-journald.service
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_4_2_2_2_status
+
+      - name: "4.2.2.2 | AUDIT | Ensure journald service is enabled | Alert on bad status"
+        debug:
+            msg:
+                - "Warning!! The status of systemd-journald should be static and it is not. Please investigate"
+        when: "'static' not in rhel8cis_4_2_2_2_status.stdout"
+
+      - name: "4.2.2.2 | AUDIT | Ensure journald service is enabled | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '4.2.2.2'
+        when: "'static' not in rhel8cis_4_2_2_2_status.stdout"
+  when:
+      - rhel8cis_rule_4_2_2_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - journald
+      - rule_4.2.2.2
+
+- name: "4.2.2.3 | PATCH | Ensure journald is configured to compress large log files"
+  lineinfile:
+      path: /etc/systemd/journald.conf
+      regexp: "^#Compress=|^Compress="
+      line: Compress=yes
+  when:
+      - rhel8cis_rule_4_2_2_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - journald
+      - rule_4.2.2.3
+
+- name: "4.2.2.4 | PATCH | Ensure journald is configured to write logfiles to persistent disk"
+  lineinfile:
+      path: /etc/systemd/journald.conf
+      regexp: "^#Storage=|^Storage="
+      line: Storage=persistent
+  when:
+      - rhel8cis_rule_4_2_2_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - journald
+      - rule_4.2.2.4
+
+# This is counter to control 4.2.1.3??
+- name: "4.2.2.5 | PATCH | Ensure journald is not configured to send logs to rsyslog"
+  lineinfile:
+      path: /etc/systemd/journald.conf
+      regexp: "^ForwardToSyslog="
+      line: "#ForwardToSyslog=yes"
+  notify: restart systemd_journal_upload
+  when:
+      - rhel8cis_rule_4_2_2_5
+  tags:
+      - level1-server
+      - level2-workstation
+      - manual
+      - patch
+      - journald
+      - rule_4.2.2.5
+
+- name: "4.2.2.6 | PATCH | Ensure journald log rotation is configured per site policy"
+  lineinfile:
+      path: /etc/systemd/journald.conf
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+  notify: restart journald
+  with_items:
+      - { regexp: '^#SystemMaxUse=|^SystemMaxUse=', line: 'SystemMaxUse={{ rhel8cis_journald_systemmaxuse }}'}
+      - { regexp: '^#SystemKeepFree=|^SystemKeepFree=', line: 'SystemKeepFree={{ rhel8cis_journald_systemkeepfree }}' }
+      - { regexp: '^#RuntimeMaxUse=|^RuntimeMaxUse=', line: 'RuntimeMaxUse={{ rhel8cis_journald_runtimemaxuse }}'}
+      - { regexp: '^#RuntimeKeepFree=|^RuntimeKeepFree=', line: 'RuntimeKeepFree={{ rhel8cis_journald_runtimekeepfree }}'}
+      - { regexp: '^#MaxFileSec=|^MaxFileSec=', line: 'MaxFileSec={{ rhel8cis_journald_maxfilesec }}'}
+  when:
+      - rhel8cis_rule_4_2_2_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - journald
+      - rule_4.2.2.6
+
+- name: "4.2.2.7 | AUDIT | Ensure journald default file permissions configured"
+  block:
+      - name: "4.2.2.7 | AUDIT | Ensure journald default file permissions configured | Check for override file"
+        find:
+            paths: /etc/tmpfiles.d
+            patterns: systemd.conf
+        register: rhel8cis_4_2_2_7_override_status
+
+      - name: "4.2.2.7 | AUDIT | Ensure journald default file permissions configured | Get override file settings"
+        shell: cat /etc/tmpfiles.d/systemd.conf
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_4_2_2_7_override_settings
+        when: rhel8cis_4_2_2_7_override_status.matched >= 1
+
+      - name: "4.2.2.7 | AUDIT | Ensure journald default file permissions configured | Get non-override file settings"
+        shell: cat /usr/lib/tmpfiles.d/systemd.conf
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_4_2_2_7_notoverride_settings
+        when: rhel8cis_4_2_2_7_override_status.matched == 0
+
+      - name: "4.2.2.7 | AUDIT | Ensure journald default file permissions configured | Display file settings"
+        debug:
+            msg:
+                - "Warning!! Below are the current default settings for journald, please confirm they align with your site policies"
+                - "{{ (rhel8cis_4_2_2_7_override_status.matched >= 1) | ternary(rhel8cis_4_2_2_7_override_settings.stdout_lines, rhel8cis_4_2_2_7_notoverride_settings.stdout_lines) }}"
+
+      - name: "4.2.2.7 | AUDIT | Ensure journald default file permissions configured | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '4.2.2.7'
+  when:
+      - rhel8cis_rule_4_2_2_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - journald
+      - rule_4.2.2.7
+
+---
+
+- name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured"
+  block:
+      - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured | Find log files"
+        find:
+            paths: "/var/log"
+            file_type: file
+            recurse: true
+        register: rhel8cis_4_2_3_logfiles
+
+      - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured | Apply permissions to existing logfiles"
+        file:
+            path: "{{ item.path }}"
+            mode: g-w,o-rwx
+        loop: "{{ rhel8cis_4_2_3_logfiles.files }}"
+        loop_control:
+            label: "{{ item.path }}"
+        when:
+            - item.path != "/var/log/btmp"
+            - item.path != "/var/log/utmp"
+            - item.path != "/var/log/wtmp"
+
+      - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured"
+        block:
+            - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured | Find logrotate conf files"
+              find:
+                  paths: /etc/logrotate.d
+                  contains: '^\s+create 06[5-7][0-7]'
+              register: rhel8cis_4_2_3_logrotate_conf_files
+
+            - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured | output found logrotate file"
+              debug:
+                  msg: "{{ item }}"
+              loop: "{{ rhel8cis_4_2_3_logrotate_conf_files.files }}"
+              loop_control:
+                  label: "{{ item.path }}"
+
+            - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured | update logrotate.conf"
+              lineinfile:
+                  path: /etc/logrotate.conf
+                  regexp: '^create'
+                  line: "create 0640"
+
+            - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured | update logrotate.d conf files"
+              replace:
+                  path: "{{ item.path }}"
+                  regexp: 'create [0-7][0-7][0-7][0-7]'
+                  replace: 'create'
+              loop: "{{ rhel8cis_4_2_3_logrotate_conf_files.files }}"
+              loop_control:
+                  label: "{{ item.path }}"
+              when:
+                  - rhel8cis_4_2_3_logrotate_conf_files.files | length >= 1
+                  - allow_logrotate_conf_umask_updates
+
+            - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured | warning logrotate.d conf files"
+              debug:
+                  msg: "Warning!! logrotate.d conf file have create mode that will not match CIS requirements upon rotation"
+              when:
+                  - rhel8cis_4_2_3_logrotate_conf_files.files | length >= 1
+                  - not allow_logrotate_conf_umask_updates
+
+            - name: "4.2.3 | PATCH | Ensure permissions on all logfiles are configured | Warn Count"
+              ansible.builtin.import_tasks: warning_facts.yml
+              vars:
+                  warn_control_id: '4.2.3'
+              when:
+                  - rhel8cis_4_2_3_logrotate_conf_files.files | length >= 1
+                  - not allow_logrotate_conf_umask_updates
+  when:
+      - rhel8cis_rule_4_2_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - logfiles
+      - rule_4.2.3
+
+---
+
+- name: "4.3 | PATCH | Ensure logrotate is configured"
+  block:
+      - name: "4.3 | AUDIT | Ensure logrotate is configured | Get logrotate settings"
+        find:
+            paths: /etc/logrotate.d/
+        register: log_rotates
+
+      - name: "4.3 | PATCH | Ensure logrotate is configured"
+        replace:
+            path: "{{ item.path }}"
+            regexp: '^(\s*)(daily|weekly|monthly|yearly)$'
+            replace: "\\1{{ rhel8cis_logrotate }}"
+        with_items:
+            - "{{ log_rotates.files }}"
+            - { path: "/etc/logrotate.conf" }
+        loop_control:
+            label: "{{ item.path }}"
+  when:
+      - rhel8cis_rule_4_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - logrotate
+      - rule_4.3
+
+
+---
+
+- name: "5.1.1 | PATCH | Ensure cron daemon is enabled"
+  service:
+      name: crond
+      enabled: true
+  when:
+      - rhel8cis_rule_5_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.1
+
+- name: "5.1.2 | PATCH | Ensure permissions on /etc/crontab are configured"
+  file:
+      path: /etc/crontab
+      owner: root
+      group: root
+      mode: 0600
+  when:
+      - rhel8cis_rule_5_1_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.2
+
+- name: "5.1.3 | PATCH | Ensure permissions on /etc/cron.hourly are configured"
+  file:
+      path: /etc/cron.hourly
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.3
+
+- name: "5.1.4 | PATCH | Ensure permissions on /etc/cron.daily are configured"
+  file:
+      path: /etc/cron.daily
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.4
+
+- name: "5.1.5 | PATCH | Ensure permissions on /etc/cron.weekly are configured"
+  file:
+      path: /etc/cron.weekly
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.1.5
+
+- name: "5.1.6 | PATCH | Ensure permissions on /etc/cron.monthly are configured"
+  file:
+      path: /etc/cron.monthly
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - rule_5.1.6
+
+- name: "5.1.7 | PATCH | Ensure permissions on /etc/cron.d are configured"
+  file:
+      path: /etc/cron.d
+      state: directory
+      owner: root
+      group: root
+      mode: 0700
+  when:
+      - rhel8cis_rule_5_1_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.7
+
+- name: "5.1.8 | PATCH | Ensure cron is restricted to authorized users"
+  block:
+      - name: "5.1.8 | PATCH | Ensure cron is restricted to authorized users | Remove cron.deny"
+        file:
+            path: /etc/cron.deny
+            state: absent
+
+      - name: "5.1.8 | PATCH | Ensure cron is restricted to authorized users | Check if cron.allow exists"
+        stat:
+            path: "/etc/cron.allow"
+        register: rhel8cis_5_1_8_cron_allow_state
+
+      - name: "5.1.8 | PATCH | Ensure cron is restricted to authorized users | Ensure cron.allow is restricted to authorized users"
+        file:
+            path: /etc/cron.allow
+            state: '{{ "file" if  rhel8cis_5_1_8_cron_allow_state.stat.exists else "touch" }}'
+            owner: root
+            group: root
+            mode: 0600
+  when:
+      - rhel8cis_rule_5_1_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.8
+
+- name: "5.1.9 | PATCH | Ensure at is restricted to authorized users"
+  block:
+      - name: "5.1.9 | PATCH | Ensure at is restricted to authorized users | Remove at.deny"
+        file:
+            path: /etc/at.deny
+            state: absent
+
+      - name: "5.1.9 | PATCH | Ensure at is restricted to authorized users  | Check if at.allow exists"
+        stat:
+            path: "/etc/at.allow"
+        register: rhel8cis_5_1_9_at_allow_state
+
+      - name: "5.1.9 | PATCH | Ensure at is restricted to authorized users | Ensure at.allow is restricted to authorized users"
+        file:
+            path: /etc/at.allow
+            state: '{{ "file" if  rhel8cis_5_1_9_at_allow_state.stat.exists else "touch" }}'
+            owner: root
+            group: root
+            mode: 0600
+  when:
+      - rhel8cis_rule_5_1_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - cron
+      - rule_5.1.9
+
+---
+
+- name: "5.2.1 | Ensure permissions on /etc/ssh/sshd_config are configured"
+  file:
+      path: /etc/ssh/sshd_config
+      owner: root
+      group: root
+      mode: 0600
+  when:
+      - rhel8cis_rule_5_2_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - permissions
+      - rule_5.2.1
+
+- name: "5.2.2 | PATCH | Ensure permissions on SSH private host key files are configured"
+  block:
+      - name: "5.2.2 | AUDIT | Ensure permissions on SSH private host key files are configured | Find the SSH private host keys"
+        find:
+            paths: /etc/ssh
+            patterns: 'ssh_host_*_key'
+            recurse: true
+            file_type: any
+        register: rhel8cis_5_2_2_ssh_private_host_key
+
+      - name: "5.2.2 | PATCH | Ensure permissions on SSH private host key files are configured | Set permissions on SSH private host keys"
+        file:
+            path: "{{ item.path }}"
+            owner: root
+            group: root
+            mode: 0600
+        with_items:
+            - "{{ rhel8cis_5_2_2_ssh_private_host_key.files }}"
+        loop_control:
+            label: "{{ item.path }}"
+  when:
+      - rhel8cis_rule_5_2_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - permissions
+      - rule_5.2.2
+
+- name: "5.2.3 | PATCH | Ensure permissions on SSH public host key files are configured"
+  block:
+      - name: "5.2.3 | AUDIT | Ensure permissions on SSH public host key files are configured | Find the SSH public host keys"
+        find:
+            paths: /etc/ssh
+            patterns: 'ssh_host_*_key.pub'
+            recurse: true
+            file_type: any
+        register: rhel8cis_5_2_3_ssh_public_host_key
+
+      - name: "5.2.3 | PATCH | Ensure permissions on SSH public host key files are configured | Set permissions on SSH public host keys"
+        file:
+            path: "{{ item.path }}"
+            owner: root
+            group: root
+            mode: 0644
+        with_items:
+            - "{{ rhel8cis_5_2_3_ssh_public_host_key.files }}"
+        loop_control:
+            label: "{{ item.path }}"
+  when:
+      - rhel8cis_rule_5_2_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.3
+
+- name: "5.2.4 | PATCH | Ensure SSH access is limited"
+  block:
+      - name: "5.2.4 | PATCH | Ensure SSH access is limited | Add line to sshd_config for allowusers"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: "^AllowUsers"
+            line: AllowUsers {{ rhel8cis_sshd['allowusers'] }}
+        notify: restart sshd
+        when: "rhel8cis_sshd['allowusers']|default('') | length > 0"
+
+      - name: "5.2.4 | PATCH | Ensure SSH access is limited | Add line to sshd_config for allowgroups"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: "^AllowGroups"
+            line: AllowGroups {{ rhel8cis_sshd['allowgroups'] }}
+        notify: restart sshd
+        when: "rhel8cis_sshd['allowgroups']|default('') | length > 0"
+
+      - name: "5.2.4 | PATCH | Ensure SSH access is limited | Add line to sshd_config for denyusers"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: "^DenyUsers"
+            line: DenyUsers {{ rhel8cis_sshd['denyusers'] }}
+        notify: restart sshd
+        when: "rhel8cis_sshd['denyusers']|default('') | length > 0"
+
+      - name: "5.2.4 | PATCH | Ensure SSH access is limited | Add line to sshd_config for denygroups"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: "^DenyGroups"
+            line: DenyGroups {{ rhel8cis_sshd['denygroups'] }}
+        notify: restart sshd
+        when: "rhel8cis_sshd['denygroups']|default('') | length > 0"
+  when:
+      - rhel8cis_rule_5_2_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.4
+
+- name: "5.2.5 | PATCH | Ensure SSH LogLevel is appropriate"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#LogLevel|^LogLevel"
+      line: 'LogLevel {{ rhel8cis_ssh_loglevel }}'
+  when:
+      - rhel8cis_rule_5_2_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sshs
+      - rule_5.2.5
+
+- name: "5.2.6 | PATCH | Ensure SSH PAM is enabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#UsePAM|^UsePAM"
+      line: 'UsePAM yes'
+  when:
+      - rhel8cis_rule_5_2_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.6
+
+- name: "5.2.7 | PATCH | Ensure SSH root login is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#PermitRootLogin|^PermitRootLogin"
+      line: 'PermitRootLogin no'
+  when:
+      - rhel8cis_rule_5_2_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.7
+
+- name: "5.2.8 | PATCH | Ensure SSH HostbasedAuthentication is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: ^#HostbasedAuthentication|^HostbasedAuthentication"
+      line: 'HostbasedAuthentication no'
+  when:
+      - rhel8cis_rule_5_2_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.8
+
+- name: "5.2.9 | PATCH | Ensure SSH PermitEmptyPasswords is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#PermitEmptyPasswords|^PermitEmptyPasswords"
+      line: 'PermitEmptyPasswords no'
+  when:
+      - rhel8cis_rule_5_2_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.9
+
+- name: "5.2.10 | PATCH | Ensure SSH PermitUserEnvironment is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#PermitUserEnvironment|^PermitUserEnvironment"
+      line: 'PermitUserEnvironment no'
+  when:
+      - rhel8cis_rule_5_2_10
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.10
+
+- name: "5.2.11 | PATCH | Ensure SSH IgnoreRhosts is enabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#IgnoreRhosts|^IgnoreRhosts"
+      line: 'IgnoreRhosts yes'
+  when:
+      - rhel8cis_rule_5_2_11
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.11
+
+- name: "5.2.12 | PATCH | Ensure SSH X11 forwarding is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#X11Forwarding|^X11Forwarding"
+      line: 'X11Forwarding no'
+  when:
+      - rhel8cis_rule_5_2_12
+  tags:
+      - level2-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.12
+
+- name: "5.2.13 | PATCH | Ensure SSH AllowTcpForwarding is disabled"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#AllowTcpForwarding|^AllowTcpForwarding"
+      line: 'AllowTcpForwarding no'
+  when:
+      - rhel8cis_rule_5_2_13
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.13
+
+- name: "5.2.14 | PATCH | Ensure system-wide crypto policy is not over-ridden"
+  block:
+      - name: "5.2.14 | AUDIT | Ensure system-wide crypto policy is not over-ridden"
+        shell: grep -i '^\s*CRYPTO_POLICY=' /etc/sysconfig/sshd
+        failed_when: ( crypto_policy_override.rc not in [ 0, 1 ] )
+        changed_when: false
+        register: crypto_policy_override
+
+      - name: "5.2.14 | PATCH | Ensure system-wide crypto policy is not over-ridden"
+        shell: sed -ri "s/^\s*(CRYPTO_POLICY\s*=.*)$/# \1/" /etc/sysconfig/sshd
+        notify: restart sshd
+        when:
+            - crypto_policy_override.stdout | length > 0
+  when:
+      - rhel8cis_rule_5_2_14
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.14
+
+- name: "5.2.15 | PATCH | Ensure SSH warning banner is configured"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: '^Banner'
+      line: 'Banner /etc/issue.net'
+  when:
+      - rhel8cis_rule_5_2_15
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.15
+
+- name: "5.2.16 | PATCH | Ensure SSH MaxAuthTries is set to 4 or less"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: '^(#)?MaxAuthTries \d'
+      line: 'MaxAuthTries 4'
+  when:
+      - rhel8cis_rule_5_2_16
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.16
+
+- name: "5.2.17 | PATCH | Ensure SSH MaxStartups is configured"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#MaxStartups|^MaxStartups"
+      line: 'MaxStartups 10:30:60'
+  when:
+      - rhel8cis_rule_5_2_17
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.17
+
+- name: "5.2.18 | PATCH | Ensure SSH MaxSessions is set to 10 or less"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#MaxSessions|^MaxSessions"
+      line: 'MaxSessions {{ rhel8cis_ssh_maxsessions }}'
+  when:
+      - rhel8cis_rule_5_2_18
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.18
+
+- name: "5.2.19 | PATCH | Ensure SSH LoginGraceTime is set to one minute or less"
+  lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "^#LoginGraceTime|^LoginGraceTime"
+      line: "LoginGraceTime {{ rhel8cis_sshd['logingracetime'] }}"
+  when:
+      - rhel8cis_rule_5_2_19
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.19
+
+- name: "5.2.20 | PATCH | Ensure SSH Idle Timeout Interval is configured"
+  block:
+      - name: "5.2.20 | PATCH | Ensure SSH Idle Timeout Interval is configured | Add line in sshd_config for ClientAliveInterval"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: '^ClientAliveInterval'
+            line: "ClientAliveInterval {{ rhel8cis_sshd['clientaliveinterval'] }}"
+
+      - name: "5.2.20 | PATCH | Ensure SSH Idle Timeout Interval is configured | Ensure SSH ClientAliveCountMax set to <= 3"
+        lineinfile:
+            path: /etc/ssh/sshd_config
+            regexp: '^ClientAliveCountMax'
+            line: "ClientAliveCountMax {{ rhel8cis_sshd['clientalivecountmax'] }}"
+  when:
+      - rhel8cis_rule_5_2_20
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - ssh
+      - rule_5.2.20
+
+---
+
+- name: "5.3.1 | PATCH | Ensure sudo is installed"
+  package:
+      name: sudo
+      state: present
+  when:
+      - rhel8cis_rule_5_3_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.1
+
+- name: "5.3.2 | PATCH | Ensure sudo commands use pty"
+  lineinfile:
+      path: /etc/sudoers
+      line: "Defaults    use_pty"
+  when:
+      - rhel8cis_rule_5_3_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.2
+
+- name: "5.3.3 | PATCH | Ensure sudo log file exists"
+  lineinfile:
+      path: /etc/sudoers
+      regexp: '^Defaults\s+logfile='
+      line: 'Defaults logfile={{ rhel8cis_sudolog_location }}'
+  when:
+      - rhel8cis_rule_5_3_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.3
+
+- name: "5.3.4 | PATCH | Ensure users must provide password for escalation"
+  replace:
+      path: "{{ item }}"
+      regexp: '^([^#|{% if system_is_ec2 %}ec2-user{% endif %}].*)NOPASSWD(.*)'
+      replace: '\1PASSWD\2'
+  with_items:
+      - "{{ rhel8cis_sudoers_files.stdout_lines }}"
+  when:
+      - rhel8cis_rule_5_3_4
+  tags:
+      - level2-server
+      - level2-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.4
+
+- name: "5.3.5 | PATCH | Ensure re-authentication for privilege escalation is not disabled globally"
+  replace:
+      path: "{{ item }}"
+      regexp: '^([^#].*)!authenticate(.*)'
+      replace: '\1authenticate\2'
+  with_items:
+      - "{{ rhel8cis_sudoers_files.stdout_lines }}"
+  when:
+      - rhel8cis_rule_5_3_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.5
+
+- name: "5.3.6 | PATCH | Ensure sudo authentication timeout is configured correctly"
+  block:
+      - name: "5.3.6 | AUDIT | Ensure sudo authentication timeout is configured correctly | Get files with timeout set"
+        shell: grep -is 'timestamp_timeout' /etc/sudoers /etc/sudoers.d/* | cut -d":" -f1 | uniq | sort
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_5_3_6_timeout_files
+
+      - name: "5.3.6 | PATCH | Ensure sudo authentication timeout is configured correctly | Set value if no results"
+        lineinfile:
+            path: /etc/sudoers
+            regexp: 'Defaults timestamp_timeout='
+            line: "Defaults timestamp_timeout={{ rhel8cis_sudo_timestamp_timeout }}"
+            validate: '/usr/sbin/visudo -cf %s'
+        when: rhel8cis_5_3_6_timeout_files.stdout | length == 0
+
+      - name: "5.3.6 | PATCH | Ensure sudo authentication timeout is configured correctly | Set value if has results"
+        replace:
+            path: "{{ item }}"
+            regexp: 'timestamp_timeout=(\d+)'
+            replace: "timestamp_timeout={{ rhel8cis_sudo_timestamp_timeout }}"
+            validate: '/usr/sbin/visudo -cf %s'
+        with_items:
+            - "{{ rhel8cis_5_3_6_timeout_files.stdout_lines }}"
+        when: rhel8cis_5_3_6_timeout_files.stdout | length > 0
+  when:
+      - rhel8cis_rule_5_3_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.6
+
+- name: "5.3.7 | PATCH | Ensure access to the su command is restricted"
+  block:
+      - name: "5.3.7 | PATCH | Ensure access to the su command is restricted | Setting pam_wheel to use_uid"
+        lineinfile:
+            path: /etc/pam.d/su
+            regexp: '^(#)?auth\s+required\s+pam_wheel\.so'
+            line: 'auth            required        pam_wheel.so use_uid {% if rhel8cis_sugroup is defined %}group={{ rhel8cis_sugroup }}{% endif %}'
+
+      - name: "5.3.7 | PATCH | Ensure access to the su command is restricted | wheel group contains root"
+        user:
+            name: "{{ rhel8cis_sugroup_users }}"
+            groups: "{{ rhel8cis_sugroup | default('wheel') }}"
+  when:
+      - rhel8cis_rule_5_3_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - sudo
+      - rule_5.3.7
+
+---
+
+- name: "5.4.1 | PATCH | Ensure custom authselect profile is used"
+  block:
+      - name: "5.4.1 | AUDIT | Ensure custom authselect profile is used | Gather profiles"
+        shell: 'authselect current | grep "Profile ID: custom/"'
+        failed_when: false
+        changed_when: false
+        check_mode: false
+        register: rhel8cis_5_4_1_profiles
+
+      - name: "5.4.1 | AUDIT | Ensure custom authselect profile is used | Show profiles"
+        debug:
+            msg:
+                - "Below are the current custom profiles"
+                - "{{ rhel8cis_5_4_1_profiles.stdout_lines }}"
+
+      - name: "5.4.1 | PATCH | Ensure custom authselect profile is used | Create custom profiles"
+        shell: authselect create-profile {{ rhel8cis_authselect['custom_profile_name'] }} -b {{ rhel8cis_authselect['default_file_to_copy'] }}
+        when: rhel8cis_authselect_custom_profile_create
+  when:
+      - rhel8cis_rule_5_4_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - patch
+      - authselect
+      - rule_5.4.1
+
+- name: "5.4.2 | PATCH | Ensure authselect includes with-faillock"
+  block:
+      - name: "5.4.2 | AUDIT | Ensure authselect includes with-faillock | Gather profiles and enabled features"
+        shell: "authselect current | grep with-faillock"
+        failed_when: false
+        changed_when: false
+        check_mode: false
+        register: rhel8cis_5_4_2_profiles_faillock
+
+      - name: "5.4.2 | AUDIT | Ensure authselect includes with-faillock| Show profiles"
+        debug:
+            msg:
+                - "Below are the current custom profiles"
+                - "{{ rhel8cis_5_4_2_profiles_faillock.stdout_lines }}"
+
+      - name: "5.4.2 | PATCH | Ensure authselect includes with-faillock | Create custom profiles"
+        shell: "authselect select custom/{{ rhel8cis_authselect['custom_profile_name'] }} with-faillock"
+        when: rhel8cis_authselect_custom_profile_select
+  when:
+      - rhel8cis_rule_5_4_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - authselect
+      - rule_5.4.2
+
+---
+
+- name: "5.5.1 | PATCH | Ensure password creation requirements are configured"
+  block:
+      - name: "5.5.1 | PATCH | Ensure password creation requirements are configured | Set pwquality config settings"
+        lineinfile:
+            path: /etc/security/pwquality.conf
+            regexp: "{{ item.regexp }}"
+            line: "{{ item.line }}"
+        with_items:
+            - { regexp: '^minlen', line: 'minlen = {{ rhel8cis_pam_password.minlen }}' }
+            - { regexp: '^minclass', line: 'minclass = {{ rhel8cis_pam_password.minclass }}' }
+
+      - name: "5.5.1 | PATCH | Ensure password creation requirements are configured | Set system-auth and password-auth retry settings"
+        lineinfile:
+            path: "{{ item }}"
+            state: present
+            regexp: '^password\s*requisite\s*pam_pwquality.so'
+            line: "password    requisite                                    pam_pwquality.so try_first_pass local_users_only enforce_for_root retry=3"
+            insertbefore: '^#?password ?'
+        with_items:
+            - /etc/pam.d/system-auth
+            - /etc/pam.d/password-auth
+  when:
+      - rhel8cis_rule_5_5_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.5.1
+
+- name: "5.5.2 | PATCH | Ensure system accounts are secured | pre RHEL8.2"
+  block:
+      - name: "5.5.2 | PATCH | Ensure lockout for failed password attempts is configured | pre RHEL8.2 | Add deny count and unlock time for preauth"
+        lineinfile:
+            path: /etc/pam.d/{{ item }}
+            state: present
+            regexp: '^auth\s*required\s*pam_faillock.so preauth'
+            line: "auth        required                                     pam_faillock.so preauth silent deny={{ rhel8cis_pam_faillock.attempts }}{{ (rhel8cis_pam_faillock.fail_for_root) | ternary(' even_deny_root ',' ') }}unlock_time={{ rhel8cis_pam_faillock.unlock_time }}"
+            insertafter: '^#?auth ?'
+        with_items:
+            - "system-auth"
+            - "password-auth"
+        when: ansible_distribution_version <= "8.1"
+
+      - name: "5.5.2 | PATCH | Ensure lockout for failed password attempts is configured | pre RHEL8.2 | Add deny count and unlock times for authfail"
+        lineinfile:
+            dest: /etc/pam.d/{{ item }}
+            state: present
+            regexp: '^auth\s*required\s*pam_faillock.so authfail'
+            line: "auth        required                                     pam_faillock.so authfail deny={{ rhel8cis_pam_faillock.attempts }}{{ (rhel8cis_pam_faillock.fail_for_root) | ternary(' even_deny_root ',' ') }}unlock_time={{ rhel8cis_pam_faillock.unlock_time }}"
+            insertafter: '^#?auth ?'
+        with_items:
+            - "system-auth"
+            - "password-auth"
+        when: ansible_distribution_version <= "8.1"
+
+      - name: "5.5.2 | PATCH | Ensure system accounts are secured | RHEL8.2+ "
+        lineinfile:
+            path: /etc/security/faillock.conf
+            state: present
+            regexp: "{{ item.regexp }}"
+            line: "{{ item.line }}"
+        with_items:
+            - { regexp: '^\s*deny\s*=\s*[1-5]\b', line: 'deny = 5' }
+            - { regexp: '^\s*unlock_time\s*=\s*(0|9[0-9][0-9]|[1-9][0-9][0-9][0-9]+)\b', line: 'unlock_time = 900' }
+        when: ansible_distribution_version >= "8.2"
+  when:
+      - rhel8cis_rule_5_5_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.5.2
+
+# This is only setting the pam_pwhistory remember due to the man page for pam_unix.so saying you should not use the remember feature
+# Man page entry below
+# remember=n
+# The last n passwords for each user are saved in /etc/security/opasswd in order to force password
+# change history and keep the user from alternating between the same password too frequently. The MD5
+# password hash algorithm is used for storing the old passwords. Instead of this option the
+# pam_pwhistory module should be used.
+- name: "5.5.3 | PATCH | Ensure password reuse is limited"
+  lineinfile:
+      path: /etc/pam.d/system-auth
+      state: present
+      line: "password    requisite                                    pam_pwhistory.so try_first_pass local_users_only enforce_for_root retry=3 remember={{ rhel8cis_pam_faillock.remember }}"
+      insertafter: '^password\s*requisite\s*pam_pwquality.so'
+  when:
+      - rhel8cis_rule_5_5_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.5.3
+
+- name: "5.5.4 | PATCH | Ensure password hashing algorithm is SHA-512"
+  block:
+      - name: "5.5.4 | PATCH | Ensure password hashing algorithm is SHA-512 | libuser.conf"
+        replace:
+            path: "{{ item.path }}"
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+        with_items:
+            - { path: /etc/libuser.conf, regexp: '^crypt_style\s*=\s*.*$', replace: 'crypt_style = sha512' }
+            - { path: /etc/login.defs, regexp: '^ENCRYPT_METHOD.*', replace: 'ENCRYPT_METHOD SHA512' }
+
+      - name: "5.5.4 | PATCH | Ensure password reuse is limited | pwhistory"
+        replace:
+            path: "{{ item }}"
+            regexp: '^password\s*sufficient\s*pam_unix.so.*$'
+            replace: 'password    sufficient                                   pam_unix.so sha512 shadow try_first_pass use_authtok remember={{ rhel8cis_pam_faillock.remember }}'
+        with_items:
+            - /etc/pam.d/password-auth
+            - /etc/pam.d/system-auth
+  when:
+      - rhel8cis_rule_5_5_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.5.4
+
+---
+
+- name: "5.6.1.1 | PATCH | Ensure password expiration is 365 days or less"
+  lineinfile:
+      path: /etc/login.defs
+      regexp: '^PASS_MAX_DAYS'
+      line: "PASS_MAX_DAYS {{ rhel8cis_pass['max_days'] }}"
+  when:
+      - rhel8cis_rule_5_6_1_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - password
+      - rule_5.6.1.1
+
+- name: "5.6.1.2 | PATCH | Ensure minimum days between password changes is 7 or more"
+  lineinfile:
+      path: /etc/login.defs
+      regexp: '^PASS_MIN_DAYS'
+      line: "PASS_MIN_DAYS {{ rhel8cis_pass['min_days'] }}"
+  when:
+      - rhel8cis_rule_5_6_1_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - password
+      - rule_5.6.1.2
+
+- name: "5.6.1.3 | PATCH | Ensure password expiration warning days is 7 or more"
+  lineinfile:
+      path: /etc/login.defs
+      regexp: '^PASS_WARN_AGE'
+      line: "PASS_WARN_AGE {{ rhel8cis_pass['warn_age'] }}"
+  when:
+      - rhel8cis_rule_5_6_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - password
+      - rule_5.6.1.3
+
+- name: "5.6.1.4 | PATCH | Ensure inactive password lock is 30 days or less"
+  block:
+      - name: "5.6.1.4 | AUDIT | Ensure inactive password lock is 30 days or less | Check current settings"
+        shell: useradd -D | grep INACTIVE={{ rhel8cis_inactivelock.lock_days }} | cut -f2 -d=
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_5_6_1_4_inactive_settings
+
+      - name: "5.6.1.4 | PATCH | Ensure inactive password lock is 30 days or less | Set default inactive setting"
+        command: useradd -D -f {{ rhel8cis_inactivelock.lock_days }}
+        when: rhel8cis_5_6_1_4_inactive_settings.stdout | length == 0
+
+      - name: "5.6.1.4 | AUDIT | Ensure inactive password lock is 30 days or less | Getting user list"
+        shell: "awk -F: '/^[^#:]+:[^\\!\\*:]*:[^:]*:[^:]*:[^:]*:[^:]*:(\\s*|-1|3[1-9]|[4-9][0-9]|[1-9][0-9][0-9]+):[^:]*:[^:]*\\s*$/ {print $1}' /etc/shadow"
+        changed_when: false
+        check_mode: false
+        register: rhel_8_5_6_1_4_user_list
+
+      - name: "5.6.1.4 | PATCH | Ensure inactive password lock is 30 days or less | Apply Inactive setting to existing accounts"
+        command: "chage --inactive {{ rhel8cis_inactivelock.lock_days }} {{ item }}"
+        with_items:
+            - "{{ rhel_8_5_6_1_4_user_list.stdout_lines }}"
+  when:
+      - rhel8cis_rule_5_6_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - password
+      - rule_5.6.1.4
+
+- name: "5.6.1.5 |  PATCH | Ensure all users last password change date is in the past"
+  block:
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past | Get current date in Unix Time"
+        shell: echo $(($(date --utc --date "$1" +%s)/86400))
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_5_6_1_5_currentut
+
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past | Get list of users with last changed pw date in the future"
+        shell: "cat /etc/shadow | awk -F: '{if($3>{{ rhel8cis_5_6_1_5_currentut.stdout }})print$1}'"
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_5_6_1_5_user_list
+
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past | Alert no pw change in the future exist"
+        debug:
+            msg: "Good News! All accounts have PW change dates that are in the past"
+        when: rhel8cis_5_6_1_5_user_list.stdout | length == 0
+
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past | Alert on accounts with pw change in the future"
+        debug:
+            msg: "Warning!! The following accounts have the last PW change date in the future: {{ rhel8cis_5_6_1_5_user_list.stdout_lines }}"
+        when:
+            - rhel8cis_5_6_1_5_user_list.stdout | length > 0
+            - not rhel8cis_futurepwchgdate_autofix
+
+      - name: "5.6.1.5 | AUDIT | Ensure all users last password change date is in the past| Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '5.6.1.5'
+        when:
+            - rhel8cis_5_6_1_5_user_list.stdout | length > 0
+            - not rhel8cis_futurepwchgdate_autofix
+
+      - name: "5.6.1.5 | PATCH | Ensure all users last password change date is in the past | Fix accounts with pw change in the future"
+        command: passwd --expire {{ item }}
+        when:
+            - rhel8cis_5_6_1_5_user_list | length > 0
+            - rhel8cis_futurepwchgdate_autofix
+        with_items:
+            - "{{ rhel8cis_5_6_1_5_user_list.stdout_lines }}"
+  when:
+      - rhel8cis_rule_5_6_1_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - patch
+      - rule_5.6.1.5
+
+---
+
+- name: "5.6.2 | PATCH | Ensure system accounts are secured"
+  block:
+      - name: "5.6.2 | Ensure system accounts are secured | Set nologin"
+        user:
+            name: "{{ item.id }}"
+            shell: /usr/sbin/nologin
+        with_items:
+            - "{{ rhel8cis_passwd }}"
+        when:
+            - item.id != "root"
+            - item.id != "sync"
+            - item.id != "shutdown"
+            - item.id != "halt"
+            - item.uid < rhel8uid_interactive_uid_start | int
+            - item.shell != "/bin/false"
+            - item.shell != "/usr/sbin/nologin"
+        loop_control:
+            label: "{{ item.id }}"
+
+      - name: "5.6.2 | PATCH | Ensure system accounts are secured | Lock accounts"
+        user:
+            name: "{{ item.id }}"
+            password_lock: true
+        with_items:
+            - "{{ rhel8cis_passwd }}"
+        when:
+            - item.id != "halt"
+            - item.id != "shutdown"
+            - item.id != "sync"
+            - item.id != "root"
+            - item.id != "nfsnobody"
+            - item.uid < rhel8uid_interactive_uid_start | int
+            - item.shell != "/bin/false"
+            - item.shell != "/usr/sbin/nologin"
+        loop_control:
+            label: "{{ item.id }}"
+  when:
+      - rhel8cis_rule_5_6_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_5.6.2
+
+- name: "5.6.3 | PATCH | Ensure default user shell timeout is 900 seconds or less"
+  blockinfile:
+      path: "{{ item.path }}"
+      state: "{{ item.state }}"
+      create: true
+      mode: 0644
+      marker: "# {mark} ANSIBLE MANAGED"
+      block: |
+        # Set session timeout - CIS ID RHEL-08-5.6.3
+        TMOUT={{ rhel8cis_shell_session_timeout.timeout }}
+        export TMOUT
+        readonly TMOUT
+  with_items:
+      - { path: "{{ rhel8cis_shell_session_timeout.file }}", state: present }
+      - { path: /etc/profile, state: "{{ (rhel8cis_shell_session_timeout.file == '/etc/profile') | ternary('present', 'absent') }}" }
+  when:
+      - rhel8cis_rule_5_6_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_5.6.3
+
+- name: "5.6.4 | PATCH | Ensure default group for the root account is GID 0"
+  command: usermod -g 0 root
+  changed_when: false
+  failed_when: false
+  when:
+      - rhel8cis_rule_5_6_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_5.6.4
+
+- name: "5.6.5 | PATCH | Ensure default user umask is 027 or more restrictive"
+  block:
+      - name: "5.6.5 | PATCH | Ensure default user umask is 027 or more restrictive | Set umask for /etc/login.defs pam_umask settings"
+        replace:
+            path: /etc/login.defs
+            regexp: "{{ item.regexp }}"
+            replace: "{{ item.replace }}"
+        loop:
+            - { regexp: '(UMASK\s+)0[012][0-6]', replace: '\1 027' }
+            - { regexp: '(USERGROUPS_ENAB\s+)yes', replace: '\1 no' }
+
+      - name: "5.6.5 | PATCH | Ensure default user umask is 027 or more restrictive | Set umask for /etc/bashrc"
+        replace:
+            path: /etc/bashrc
+            regexp: '(^\s+umask) 0[012][0-6]'
+            replace: '\1 027'
+
+      - name: "5.6.5 | PATCH | Ensure default user umask is 027 or more restrictive | Set umask for /etc/profile"
+        replace:
+            path: /etc/profile
+            regexp: '(^\s+umask) 0[012][0-6]'
+            replace: '\1 027'
+  when:
+      - rhel8cis_rule_5_6_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_5.6.5
+
+
+---
+
+- name: "6.1.1 | AUDIT | Audit system file permissions"
+  block:
+      - name: "6.1.1 | AUDIT | Audit system file permissions | Audit the packages"
+        shell: rpm -Va --nomtime --nosize --nomd5 --nolinkto
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_6_1_1_packages_rpm
+
+      - name: "6.1.1 | AUDIT | Audit system file permissions | Create list and warning"
+        block:
+            - name: "6.1.1 | AUDIT | Audit system file permissions | Add file discrepancy list to system"
+              copy:
+                  dest: "{{ rhel8cis_rpm_audit_file }}"  # noqa template-instead-of-copy
+                  content: "{{ rhel8cis_6_1_1_packages_rpm.stdout }}"
+                  owner: root
+                  group: root
+                  mode: 0644
+
+            - name: "6.1.1 | AUDIT | Audit system file permissions | Message out alert for package descrepancies"
+              debug:
+                  msg: |
+                     "Warning!! You have some package descrepancies issues.
+                      The file list can be found in {{ rhel8cis_rpm_audit_file }}"
+              when: rhel8cis_6_1_1_packages_rpm.stdout|length > 0
+
+            - name: "6.1.1 | AUDIT | Audit system file permissions | Warn Count"
+              ansible.builtin.import_tasks: warning_facts.yml
+              vars:
+                  warn_control_id: '6.1.1'
+              when: rhel8cis_6_1_1_packages_rpm.stdout | length > 0
+
+  when:
+      - rhel8cis_rule_6_1_1
+  tags:
+      - level2-server
+      - level2-workstation
+      - manual
+      - audit
+      - permissions
+      - rule_6.1.1
+
+- name: "6.1.2 | PATCH | Ensure sticky bit is set on all world-writable directories"
+  shell: df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type d -perm -0002 2>/dev/null | xargs chmod a+t
+  changed_when: false
+  failed_when: false
+  when:
+      - rhel8cis_rule_6_1_2
+  tags:
+      - skip_ansible_lint
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - stickybits
+      - permissons
+      - rule_6.1.2
+
+- name: "6.1.3 | PATCH | Ensure permissions on /etc/passwd are configured"
+  file:
+      path: /etc/passwd
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_6_1_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - permissions
+      - rule_6.1.3
+
+- name: "6.1.4 | PATCH | Ensure permissions on /etc/shadow are configured"
+  file:
+      path: /etc/shadow
+      owner: root
+      group: root
+      mode: 0000
+  when:
+      - rhel8cis_rule_6_1_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - permissions
+      - rule_6.1.4
+
+- name: "6.1.5 | PATCH |  Ensure permissions on /etc/group are configured"
+  file:
+      path: /etc/group
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_6_1_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - permissions
+      - rule_6.1.5
+
+- name: "6.1.6 | PATCH | Ensure permissions on /etc/gshadow are configured"
+  file:
+      path: /etc/gshadow
+      owner: root
+      group: root
+      mode: 0000
+  when:
+      - rhel8cis_rule_6_1_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - permissions
+      - rule_6.1.6
+
+- name: "6.1.7 | PATCH | Ensure permissions on /etc/passwd- are configured"
+  file:
+      path: /etc/passwd-
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_6_1_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - permissions
+      - rule_6.1.7
+
+- name: "6.1.8 | PATCH | Ensure permissions on /etc/shadow- are configured"
+  file:
+      path: /etc/shadow-
+      owner: root
+      group: root
+      mode: 0000
+  when:
+      - rhel8cis_rule_6_1_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - permissions
+      - rule_6.1.8
+
+- name: "6.1.9 | PATCH | Ensure permissions on /etc/group- are configured"
+  file:
+      path: /etc/group-
+      owner: root
+      group: root
+      mode: 0644
+  when:
+      - rhel8cis_rule_6_1_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - permissionss
+      - rule_6.1.9
+
+- name: "6.1.10 | PATCH | Ensure permissions on /etc/gshadow- are configured"
+  file:
+      path: /etc/gshadow-
+      owner: root
+      group: root
+      mode: 0000
+  when:
+      - rhel8cis_rule_6_1_10
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - permissions
+      - rule_6.1.10
+
+- name: "6.1.11 | PATCH | Ensure no world writable files exist"
+  block:
+      - name: "6.1.11 | AUDIT | Ensure no world writable files exist | Get list of world-writable files"
+        shell: df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type f -perm -0002
+        failed_when: false
+        changed_when: false
+        register: rhel_08_6_1_11_perms_results
+
+      - name: "6.1.11 | AUDIT | Ensure no world writable files exist | Alert no world-writable files exist"
+        debug:
+            msg: "Good news! We have not found any world-writable files on your system"
+        when:
+            - rhel_08_6_1_11_perms_results.stdout is not defined
+
+      - name: "6.1.11 | PATCH | Ensure no world writable files exist | Adjust world-writable files if they exist (Configurable)"
+        file:
+            path: '{{ item }}'
+            mode: o-w
+            state: touch
+        with_items: "{{ rhel_08_6_1_11_perms_results.stdout_lines }}"
+        when:
+            - rhel_08_6_1_11_perms_results.stdout_lines is defined
+            - rhel8cis_no_world_write_adjust
+
+      - name: "6.1.11 | AUDIT | Ensure no world writable files exist | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.1.11'
+        when:
+            - rhel_08_6_1_11_perms_results.stdout_lines is defined
+            - not rhel8cis_no_world_write_adjust
+  when:
+      - rhel8cis_rule_6_1_11
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - files
+      - permissions
+      - rule_6.1.11
+
+- name: "6.1.12 | AUDIT | Ensure no unowned files or directories exist"
+  block:
+      - name: "6.1.12 | AUDIT | Ensure no unowned files or directories exist | Finding all unowned files or directories"
+        command: find "{{ item.mount }}" -xdev -nouser
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel_08_6_1_12_audit
+        with_items: "{{ ansible_mounts }}"
+        loop_control:
+            label: "{{ item.mount }}"
+        when: item['device'].startswith('/dev') and not 'bind' in item['options']
+
+      - name: "6.1.12 | AUDIT | Ensure no unowned files or directories exist | Displaying any unowned files or directories"
+        debug:
+            msg: "Manual intervention is required -- missing owner on items in {{ item.item.mount }}: {{ item.stdout_lines | join(', ') }}"
+        with_items: "{{ rhel_08_6_1_12_audit.results }}"
+        register: rhel_08_6_1_12_unowned_files
+        when:
+            - item.stdout_lines is defined
+            - item.stdout_lines | length > 0
+
+      - name: "6.1.12 | AUDIT | Ensure no unowned files or directories exist | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.1.12'
+        when:
+            - not rhel_08_6_1_12_unowned_files.skipped
+  when:
+      - rhel8cis_rule_6_1_12
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - files
+      - permissions
+      - rule_6.1.12
+
+- name: "6.1.13 | AUDIT | Ensure no ungrouped files or directories exist"
+  block:
+      - name: "6.1.13 | AUDIT | Ensure no ungrouped files or directories exist | Finding all ungrouped files or directories"
+        command: find "{{ item.mount }}" -xdev -nogroup
+        check_mode: false
+        failed_when: false
+        changed_when: false
+        register: rhel_08_6_1_13_audit
+        with_items: "{{ ansible_mounts }}"
+        loop_control:
+            label: "{{ item.mount }}"
+        when: item['device'].startswith('/dev') and not 'bind' in item['options']
+
+      - name: "6.1.13 | AUDIT | Ensure no ungrouped files or directories exist | Displaying all ungrouped files or directories"
+        debug:
+            msg: "Manual intervention is required -- missing group on items in {{ item.item.mount }}: {{ item.stdout_lines | join(', ') }}"
+        with_items: "{{ rhel_08_6_1_13_audit.results }}"
+        register: rhel_08_6_1_13_ungrouped_files
+        when:
+            - item.stdout_lines is defined
+            - item.stdout_lines | length > 0
+
+      - name: "6.1.13 | AUDIT | Ensure no ungrouped files or directories exist | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.1.13'
+        when: not rhel_08_6_1_13_ungrouped_files.skipped
+
+  when:
+      - rhel8cis_rule_6_1_13
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - files
+      - permissions
+      - rule_6.1.13
+
+- name: "6.1.14 | AUDIT | Audit SUID executables"
+  block:
+      - name: "6.1.14 | AUDIT | Audit SUID executables | Find all SUID executables"
+        shell: df {{ item.mount }} -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type f -perm -4000
+        failed_when: false
+        changed_when: false
+        register: rhel_08_6_1_14_perms_results
+        with_items: "{{ ansible_mounts }}"
+        loop_control:
+            label: "{{ item.mount }}"
+
+      - name: "6.1.14 | AUDIT | Audit SUID executables |  Alert SUID executables exist"
+        debug:
+            msg: "Manual intervention is required -- SUID set on items in {{ item.item.mount }}: {{ item.stout_lines | join(', ') }}"
+        with_items: "{{ rhel_08_6_1_14_perms_results.stdout_lines }}"
+        when:
+            - rhel_08_6_1_14_perms_results.stdout is defined
+
+      - name: "6.1.14 | AUDIT | Audit SUID executables | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.1.14'
+        when:
+            - rhel_08_6_1_14_perms_results.stdout is defined
+  when:
+      - rhel8cis_rule_6_1_14
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - audit
+      - files
+      - rule_6.1.14
+
+- name: "6.1.15 | AUDIT | Audit SGID executables"
+  block:
+      - name: "6.1.15 | AUDIT | Audit SGID executables | Find all SGID executables"
+        shell: df {{ item.mount }} -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type f -perm -2000
+        failed_when: false
+        changed_when: false
+        register: rhel_08_6_1_15_perms_results
+        with_items: "{{ ansible_mounts }}"
+        loop_control:
+            label: "{{ item.mount }}"
+
+      - name: "6.1.15 | AUDIT | Audit SGID executables |  Alert SGID executables exist"
+        debug:
+            msg: "Manual intervention is required -- SGID set on items in {{ item.item.mount }}: {{ item.stout_lines | join(', ') }}"
+        with_items: "{{ rhel_08_6_1_15_perms_results.stdout_lines }}"
+        when:
+            - rhel_08_6_1_15_perms_results.stdout is defined
+
+      - name: "6.1.15 | AUDIT | Audit SGID executables | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.1.15'
+        when:
+            - rhel_08_6_1_15_perms_results.stdout is defined
+  when:
+      - rhel8cis_rule_6_1_15
+  tags:
+      - level1-server
+      - level1-workstation
+      - manual
+      - audit
+      - files
+      - rule_6.1.15
+
+---
+
+- name: "6.2.1 | PATCH | Ensure password fields are not empty"
+  command: passwd -l {{ item }}
+  changed_when: false
+  failed_when: false
+  with_items: "{{ empty_password_accounts.stdout_lines }}"
+  when:
+      - empty_password_accounts.rc
+      - rhel8cis_rule_6_2_1
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - rule_6.2.1
+
+- name: "6.2.2 | AUDIT | Ensure all groups in /etc/passwd exist in /etc/group"
+  block:
+      - name: "6.2.2 | AUDIT | Ensure all groups in /etc/passwd exist in /etc/group | Check /etc/passwd entries"
+        shell: pwck -r | grep 'no group' | awk '{ gsub("[:\47]",""); print $2}'
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_6_2_2_passwd_gid_check
+
+      - name: "6.2.2 | AUDIT | Ensure all groups in /etc/passwd exist in /etc/group | Print warning about users with invalid GIDs missing GID entries in /etc/group"
+        debug:
+            msg: "Warning!! The following users have non-existent GIDs (Groups): {{ rhel8cis_6_2_2_passwd_gid_check.stdout_lines | join (', ') }}"
+        when: rhel8cis_6_2_2_passwd_gid_check.stdout | length > 0
+
+      - name: "6.2.2 | AUDIT | Ensure all groups in /etc/passwd exist in /etc/group | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.2.2'
+        when: rhel8cis_6_2_2_passwd_gid_check.stdout | length > 0
+  when:
+      - rhel8cis_rule_6_2_2
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - accounts
+      - groups
+      - rule_6.2.2
+
+- name: "6.2.3 | AUDIT Ensure no duplicate UIDs exist"
+  block:
+      - name: "6.2.3 | AUDIT | Ensure no duplicate UIDs exist | Check for duplicate UIDs"
+        shell: "pwck -r | awk -F: '{if ($3 in uid) print $1 ; else uid[$3]}' /etc/passwd"
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_6_2_3_user_uid_check
+
+      - name: "6.2.3 | AUDIT | Ensure no duplicate UIDs exist | Print warning about users with duplicate UIDs"
+        debug:
+            msg: "Warning!! The following users have UIDs that are duplicates: {{ rhel8cis_6_2_3_user_uid_check.stdout_lines }}"
+        when: rhel8cis_6_2_3_user_uid_check.stdout | length > 0
+
+      - name: "6.2.3 | AUDIT | Ensure no duplicate UIDs exist | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.2.3'
+        when: rhel8cis_6_2_3_user_uid_check.stdout | length > 0
+  when:
+      - rhel8cis_rule_6_2_3
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - accounts
+      - users
+      - rule_6.2.3
+
+- name: "6.2.4 | AUDIT | Ensure no duplicate GIDs exist"
+  block:
+      - name: "6.2.4 | AUDIT | Ensure no duplicate GIDs exist | Check for duplicate GIDs"
+        shell: "pwck -r | awk -F: '{if ($3 in users) print $1 ; else users[$3]}' /etc/group"
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_6_2_4_user_user_check
+
+      - name: "6.2.4 | AUDIT | Ensure no duplicate GIDs exist | Print warning about users with duplicate GIDs"
+        debug:
+            msg: "Warning!! The following groups have duplicate GIDs: {{ rhel8cis_6_2_4_user_user_check.stdout_lines }}"
+        when: rhel8cis_6_2_4_user_user_check.stdout | length > 0
+
+      - name: "6.2.4 | AUDIT | Ensure no duplicate GIDs exist | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.2.4'
+        when: rhel8cis_6_2_4_user_user_check.stdout | length > 0
+
+  when:
+      - rhel8cis_rule_6_2_4
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - accounts
+      - groups
+      - rule_6.2.4
+
+- name: "6.2.5 | AUDIT | Ensure no duplicate user names exist"
+  block:
+      - name: "6.2.5 | AUDIT | Ensure no duplicate user names exist | Check for duplicate User Names"
+        shell: "pwck -r | awk -F: '{if ($1 in users) print $1 ; else users[$1]}' /etc/passwd"
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_6_2_5_user_username_check
+
+      - name: "6.2.5 | AUDIT | Ensure no duplicate user names exist | Print warning about users with duplicate User Names"
+        debug:
+            msg: "Warning!! The following user names are duplicates: {{ rhel8cis_6_2_5_user_username_check.stdout_lines }}"
+        when: rhel8cis_6_2_5_user_username_check.stdout | length > 0
+
+      - name: "6.2.5 | AUDIT | Ensure no duplicate user names exist | Warn Count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.2.5'
+        when: rhel8cis_6_2_5_user_username_check.stdout | length > 0
+  when:
+      - rhel8cis_rule_6_2_5
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - accounts
+      - users
+      - rule_6.2.5
+
+- name: "6.2.6 | AUDIT |Ensure no duplicate group names exist"
+  block:
+      - name: "6.2.6 | AUDIT | Ensure no duplicate group names exist | Check for duplicate group names"
+        shell: 'getent passwd | cut -d: -f1 | sort -n | uniq -d'
+        changed_when: false
+        failed_when: false
+        check_mode: false
+        register: rhel8cis_6_2_6_group_group_check
+
+      - name: "6.2.6 | AUDIT | Ensure no duplicate group names exist | Print warning about users with duplicate group names"
+        debug:
+            msg: "Warning!! The following group names are duplicates: {{ rhel8cis_6_2_6_group_group_check.stdout_lines }}"
+        when: rhel8cis_6_2_6_group_group_check.stdout | length > 0
+
+      - name: "6.2.6 | AUDIT | Ensure no duplicate group names exist | Warn count"
+        ansible.builtin.import_tasks: warning_facts.yml
+        vars:
+            warn_control_id: '6.2.6'
+        when: rhel8cis_6_2_6_group_group_check.stdout | length > 0
+  when:
+      - rhel8cis_rule_6_2_6
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - audit
+      - accounts
+      - groups
+      - rule_6.2.6
+
+- name: "6.2.7 | PATCH | Ensure root PATH Integrity"
+  block:
+      - name: "6.2.7 | AUDIT | Ensure root PATH Integrity | Determine empty value"
+        shell: 'echo $PATH | grep ::'
+        changed_when: false
+        failed_when: rhel8cis_6_2_7_path_colon.rc == 0
+        check_mode: false
+        register: rhel8cis_6_2_7_path_colon
+
+      - name: "6.2.7 | AUDIT | Ensure root PATH Integrity | Determin colon end"
+        shell: 'echo $PATH | grep :$'
+        changed_when: false
+        failed_when: rhel8cis_6_2_7_path_colon_end.rc == 0
+        check_mode: false
+        register: rhel8cis_6_2_7_path_colon_end
+
+      - name: "6.2.7 | AUDIT | Ensure root PATH Integrity | Determine dot in path"
+        shell: "/bin/bash --login -c 'env | grep ^PATH=' | sed -e 's/PATH=//' -e 's/::/:/' -e 's/:$//' -e 's/:/\\n/g'"
+        changed_when: false
+        failed_when: '"." in rhel8cis_6_2_7_dot_in_path.stdout_lines'
+        check_mode: false
+        register: rhel8cis_6_2_7_dot_in_path
+
+      - name: "6.2.7 | AUDIT | Ensure root PATH Integrity | Alert on empty value, colon end, and dot in path"
+        debug:
+            msg:
+                - "The following paths have an empty value: {{ rhel8cis_6_2_7_path_colon.stdout_lines }}"
+                - "The following paths have colon end: {{ rhel8cis_6_2_7_path_colon_end.stdout_lines }}"
+                - "The following paths have a dot in the path: {{ rhel8cis_6_2_7_dot_in_path.stdout_lines }}"
+
+      - name: "6.2.7 | PATCH | Ensure root PATH Integrity | Determine rights and owner"
+        file: >
+          path='{{ item }}'
+          follow=yes
+          state=directory
+          owner=root
+          mode='o-w,g-w'
+        with_items: "{{ rhel8cis_6_2_7_dot_in_path.stdout_lines }}"
+  when:
+      - rhel8cis_rule_6_2_7
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - paths
+      - rule_6.2.7
+
+- name: "6.2.8 | PATCH | Ensure root is the only UID 0 account"
+  command: passwd -l {{ item }}
+  changed_when: false
+  failed_when: false
+  with_items: "{{ rhel8cis_uid_zero_accounts_except_root.stdout_lines }}"
+  when:
+      - rhel8cis_uid_zero_accounts_except_root.rc
+      - rhel8cis_rule_6_2_8
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - accounts
+      - users
+      - rule_6.2.8
+
+- name: "6.2.9 | PATCH | Ensure all users' home directories exist"
+  block:
+      - name: "6.2.9 | AUDIT | Ensure all users' home directories exist"
+        stat:
+            path: "{{ item }}"
+        register: rhel_08_6_2_9_audit
+        with_items: "{{ rhel8cis_passwd | selectattr('uid', '>=', rhel8uid_interactive_uid_start | int ) | selectattr('uid', '<=', rhel8uid_interactive_uid_stop | int ) | map(attribute='dir') | list }}"
+
+      - name: "6.2.9 | AUDIT | Ensure all users' home directories exist"
+        command: find -H {{ item.0 | quote }} -not -type l -perm /027
+        check_mode: false
+        changed_when: rhel_08_6_2_9_patch_audit.stdout | length > 0
+        register: rhel_08_6_2_9_patch_audit
+        when:
+            - ansible_check_mode
+            - item.1.exists
+        with_together:
+            - "{{ rhel_08_6_2_9_audit.results | map(attribute='item') | list }}"
+            - "{{ rhel_08_6_2_9_audit.results | map(attribute='stat') | list }}"
+        loop_control:
+            label: "{{ item.0 }}"
+
+      - name: "6.2.9 | PATCH | Ensure all users' home directories exist"
+        file:
+            path: "{{ item.0 }}"
+            recurse: true
+            mode: a-st,g-w,o-rwx
+        register: rhel_08_6_2_9_patch
+        when:
+            - not ansible_check_mode
+            - item.1.exists
+        with_together:
+            - "{{ rhel_08_6_2_9_audit.results | map(attribute='item') | list }}"
+            - "{{ rhel_08_6_2_9_audit.results | map(attribute='stat') | list }}"
+        loop_control:
+            label: "{{ item.0 }}"
+
+      # set default ACLs so the homedir has an effective umask of 0027
+      - name: "6.2.9 | PATCH | Ensure all users' home directories exist"
+        acl:
+            path: "{{ item.0 }}"
+            default: true
+            state: present
+            recursive: true
+            follow: "{{ rhel_08_6_2_9_follow_home_symlinks }}"
+            etype: "{{ item.1.etype }}"
+            permissions: "{{ item.1.mode }}"
+        when:
+            - not system_is_container
+        with_nested:
+            - "{{ (ansible_check_mode | ternary(rhel_08_6_2_9_patch_audit, rhel_08_6_2_9_patch)).results |
+              rejectattr('skipped', 'defined') | map(attribute='item') | map('first') | list }}"
+            -
+                - etype: group
+                  mode: rx
+                - etype: other
+                  mode: '0'
+  when:
+      - rhel8cis_rule_6_2_9
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - users
+      - rule_6.2.9
+
+- name: "6.2.10 | PATCH | Ensure users own their home directories"
+  file:
+      path: "{{ item.dir }}"
+      owner: "{{ item.id }}"
+      state: directory
+  with_items: "{{ rhel8cis_passwd }}"
+  loop_control:
+      label: "{{ rhel8cis_passwd_label }}"
+  when:
+      - item.uid >= rhel8uid_interactive_uid_start|int
+      - item.id != 'nobody'
+      - item.dir != '/dev/null'
+      - rhel8cis_rule_6_2_10
+  tags:
+      - skip_ansible_lint  # settings found on 6_2_7
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - users
+      - rule_6.2.10
+
+- name: "6.2.11 | PATCH | Ensure users' home directories permissions are 750 or more restrictive"
+  block:
+      - name: "6.2.11 | AUDIT | Ensure users' home directories permissions are 750 or more restrictive"
+        stat:
+            path: "{{ item }}"
+        with_items: "{{ rhel8cis_passwd | selectattr('uid', '>=', rhel8uid_interactive_uid_start | int) | selectattr('uid', '<=', rhel8uid_interactive_uid_stop | int) | map(attribute='dir') | list }}"
+        register: rhel_08_6_2_11_audit
+
+      - name: "6.2.11 | AUDIT | Ensure users' home directories permissions are 750 or more restrictive"
+        command: find -H {{ item.0 | quote }} -not -type l -perm /027
+        check_mode: false
+        changed_when: rhel_08_6_2_11_patch_audit.stdout | length > 0
+        register: rhel_08_6_2_11_patch_audit
+        when:
+            - ansible_check_mode
+            - item.1.exists
+        with_together:
+            - "{{ rhel_08_6_2_11_audit.results | map(attribute='item') | list }}"
+            - "{{ rhel_08_6_2_11_audit.results | map(attribute='stat') | list }}"
+        loop_control:
+            label: "{{ item.0 }}"
+
+      - name: "6.2.11 | PATCH | Ensure users' home directories permissions are 750 or more restrictive"
+        file:
+            path: "{{ item.0 }}"
+            recurse: true
+            mode: a-st,g-w,o-rwx
+        register: rhel_08_6_2_11_patch
+        when:
+            - not ansible_check_mode
+            - item.1.exists
+        with_together:
+            - "{{ rhel_08_6_2_11_audit.results | map(attribute='item') | list }}"
+            - "{{ rhel_08_6_2_11_audit.results | map(attribute='stat') | list }}"
+        loop_control:
+            label: "{{ item.0 }}"
+
+      # set default ACLs so the homedir has an effective umask of 0027
+      - name: "6.2.11 | PATCH | Ensure users' home directories permissions are 750 or more restrictive"
+        acl:
+            path: "{{ item.0 }}"
+            default: true
+            state: present
+            recursive: true
+            etype: "{{ item.1.etype }}"
+            permissions: "{{ item.1.mode }}"
+        when:
+            - not system_is_container
+        with_nested:
+            - "{{ (ansible_check_mode | ternary(rhel_08_6_2_11_patch_audit, rhel_08_6_2_11_patch)).results |
+              rejectattr('skipped', 'defined') | map(attribute='item') | map('first') | list }}"
+            -
+                - etype: group
+                  mode: rx
+                - etype: other
+                  mode: '0'
+  when:
+      - rhel8cis_rule_6_2_11
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - users
+      - permissions
+      - rule_6.2.11
+
+- name: "6.2.12 | PATCH | Ensure users' dot files are not group or world-writable"
+  block:
+      - name: "6.2.12 | AUDIT | Ensure users' dot files are not group or world-writable | Check for files"
+        shell: find /home/ -maxdepth 2 -name "\.*" -perm /g+w,o+w
+        changed_when: false
+        failed_when: false
+        register: rhel8cis_6_2_12_audit
+
+      - name: "6.2.12 | PATCH | Ensure users' dot files are not group or world-writable | Changes files if configured"
+        file:
+            path: '{{ item }}'
+            mode: go-w
+        with_items: "{{ rhel8cis_6_2_12_audit.stdout_lines }}"
+        when:
+            - rhel8cis_6_2_12_audit.stdout is defined
+            - rhel8cis_dotperm_ansiblemanaged
+  when:
+      - rhel8cis_rule_6_2_12
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - users
+      - permissions
+      - rule_6.2.12
+
+- name: "6.2.13 | PATCH | Ensure users' .netrc Files are not group or world accessible"
+  command: /bin/true
+  changed_when: false
+  failed_when: false
+  when:
+      - rhel8cis_rule_6_2_13
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - users
+      - permissions
+      - notimplemented
+      - rule_6.2.13
+
+- name: "6.2.14 | PATCH | Ensure no users have .forward files"
+  file:
+      path: "~{{ item }}/.forward"
+      state: absent
+  with_items:
+      - "{{ users.stdout_lines }}"
+  when:
+      - rhel8cis_rule_6_2_14
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - users
+      - files
+      - rule_6.2.14
+
+- name: "6.2.15 | PATCH | Ensure no users have .netrc files"
+  file:
+      path: "~{{ item }}/.netrc"
+      state: absent
+  with_items:
+      - "{{ users.stdout_lines }}"
+  when:
+      - rhel8cis_rule_6_2_15
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - users
+      - files
+      - rule_6.2.15
+
+- name: "6.2.16 | PATCH | Ensure no users have .rhosts files"
+  file:
+      path: "~{{ item }}/.rhosts"
+      state: absent
+  with_items: "{{ users.stdout_lines }}"
+  when:
+      - rhel8cis_rule_6_2_16
+  tags:
+      - level1-server
+      - level1-workstation
+      - automated
+      - patch
+      - users
+      - files
+      - rule_6.2.16
+
+
